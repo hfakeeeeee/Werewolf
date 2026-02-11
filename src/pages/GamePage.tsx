@@ -198,9 +198,17 @@ export default function GamePage() {
     setActiveCode(code)
   }, [code, setActiveCode])
 
+  const orderedPlayers = useMemo(() => {
+    if (!room) return []
+    return Object.values(room.players).sort((a, b) => {
+      if (a.joinedAt !== b.joinedAt) return a.joinedAt - b.joinedAt
+      return a.id.localeCompare(b.id)
+    })
+  }, [room])
+
   const alivePlayers = useMemo(
-    () => (room ? Object.values(room.players).filter((p) => p.isAlive) : []),
-    [room]
+    () => orderedPlayers.filter((p) => p.isAlive),
+    [orderedPlayers]
   )
 
   const myVote = room?.votes?.[playerId]
@@ -515,11 +523,11 @@ export default function GamePage() {
                     <h3 className="font-display text-xl">Village Roster</h3>
                   </div>
                   <span className="rounded-full border border-ashen-600 px-3 py-1 text-xs text-ashen-200">
-                    {alivePlayers.length} alive / {Object.keys(room.players).length} total
+                    {alivePlayers.length} alive / {orderedPlayers.length} total
                   </span>
                 </div>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {Object.values(room.players).map((player) => {
+                  {orderedPlayers.map((player) => {
                     const gradient = pickGradient(player.id)
                     const isMe = player.id === playerId
                     const showRole = isMe && player.role
@@ -563,7 +571,7 @@ export default function GamePage() {
                           {player.isHost && (
                             <span className="rounded-full bg-ember/20 px-2 py-1 text-ember">Crown</span>
                           )}
-                          {showRole && (
+                          {showRole && player.role && (
                             <span className="rounded-full bg-ashen-700/70 px-2 py-1 text-ashen-100">
                               {roleIcons[player.role]} {player.role}
                             </span>

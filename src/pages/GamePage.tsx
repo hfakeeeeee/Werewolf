@@ -193,6 +193,7 @@ export default function GamePage() {
     setNightAction,
     sendChat,
     sendHunterShot,
+    removePlayer,
   } = useRoom()
 
   useEffect(() => {
@@ -405,6 +406,14 @@ export default function GamePage() {
                             <span className="rounded-full bg-ashen-700/70 px-2 py-1 text-ashen-100">
                               {roleIcons[player.role]} {player.role}
                             </span>
+                          )}
+                          {isHost && !isMe && (
+                            <button
+                              onClick={() => removePlayer(player.id)}
+                              className="rounded-full bg-rose-500/20 px-2 py-1 text-rose-200"
+                            >
+                              Remove
+                            </button>
                           )}
                         </div>
                       </div>

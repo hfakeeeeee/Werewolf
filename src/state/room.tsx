@@ -176,6 +176,7 @@ export interface RoomState {
   setNightAction: (update: Partial<NightActions>) => Promise<void>
   sendChat: (message: string) => Promise<void>
   sendHunterShot: (targetId: string) => Promise<void>
+  removePlayer: (targetId: string) => Promise<void>
 }
 
 const RoomContext = createContext<RoomState | null>(null)
@@ -259,6 +260,7 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
     if (now < room.phaseEndsAt) return
     advancePhase()
   }, [now, playerId, room])
+
 
   const me = room?.players?.[playerId]
   const isHost = me?.isHost ?? false
@@ -595,6 +597,22 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
     })
   }
 
+  const removePlayer = async (targetId: string) => {
+    if (!room) return
+    if (!room.players?.[playerId]?.isHost) return
+    if (!room.players?.[targetId]) return
+    if (targetId === playerId) return
+    const updates: Record<string, unknown> = {
+      [`players.${targetId}`]: deleteField(),
+      updatedAt: Date.now(),
+    }
+    if (room.hostId === targetId) {
+      updates.hostId = playerId
+      updates[`players.${playerId}.isHost`] = true
+    }
+    await updateDoc(doc(db, 'rooms', room.code), updates)
+  }
+
   const sendHunterShot = async (targetId: string) => {
     if (!room || !me) return
     if (!room.hunterPending || room.hunterPending !== playerId) return
@@ -658,6 +676,7 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
     setNightAction,
     sendChat,
     sendHunterShot,
+    removePlayer,
   }
 
   return <RoomContext.Provider value={value}>{children}</RoomContext.Provider>

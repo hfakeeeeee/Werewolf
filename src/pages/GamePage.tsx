@@ -360,26 +360,19 @@ export default function GamePage() {
                     return (
                       <div
                         key={player.id}
-                        className={`flex h-full flex-col overflow-hidden rounded-2xl border border-ashen-700 bg-ashen-800/70 transition ${
-                          player.isAlive ? 'opacity-100' : 'opacity-40'
-                        }`}
+                        className={`relative flex h-full flex-col overflow-hidden rounded-2xl border bg-ashen-800/70 transition ${
+                          isMe
+                            ? 'border-ember shadow-[0_0_0_2px_rgba(245,176,76,0.35),0_14px_24px_rgba(0,0,0,0.35)]'
+                            : 'border-ashen-700'
+                        } ${player.isAlive ? 'opacity-100' : 'opacity-40'}`}
                       >
-                        <div
-                          className={`flex items-center justify-between px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] ${
-                            isMe ? 'bg-ember text-slate-950' : 'bg-ashen-700 text-ashen-100'
-                          }`}
-                        >
+                        <div className="absolute left-2 top-2 z-10 flex items-center gap-2 rounded-full bg-ashen-900/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-ashen-100">
                           <span>{player.name}</span>
-                          {isMe && <span className="text-[10px]">You</span>}
+                          {isMe && <span className="text-[9px] text-ember">You</span>}
                         </div>
-                        <div className="relative grid flex-1 place-items-center gap-1 bg-ashen-900/40 p-2">
-                          <div
-                            className={`grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br ${gradient} text-sm font-semibold text-slate-950 shadow-lg`}
-                          >
-                            {initials(player.name)}
-                          </div>
-                          <div className="relative grid h-16 w-full place-items-center overflow-hidden rounded-xl border border-ashen-700 bg-ashen-800/60">
-                            <Avatar seed={avatarSeed(player.id)} sizeClass="h-12 w-12" />
+                        <div className="relative grid flex-1 place-items-center gap-2 bg-ashen-900/40 p-3 pt-7">
+                          <div className="relative grid h-20 w-full place-items-center overflow-hidden rounded-xl border border-ashen-700 bg-ashen-800/60">
+                            <Avatar seed={avatarSeed(player.id)} sizeClass="h-16 w-16" />
                           </div>
                           {!player.isAlive && (
                             <div

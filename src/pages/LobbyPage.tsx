@@ -5,7 +5,7 @@ import { useRoom } from '../state/room'
 const featureChips = [
   { icon: '\u{1F43A}', title: 'Werewolves', text: 'Hunt at night' },
   { icon: '\u{1F52E}', title: 'Seer', text: 'Reveal one role' },
-  { icon: '\u{1FA7A}', title: 'Doctor', text: 'Protect one player' },
+  { icon: '\u{1F6E1}', title: 'Bodyguard', text: 'Protect one player' },
   { icon: '\u{1F3F9}', title: 'Hunter', text: 'Final revenge shot' },
 ]
 
@@ -189,7 +189,7 @@ export default function LobbyPage() {
               <div className="mt-3 grid gap-2 text-sm text-ashen-200 sm:grid-cols-3 lg:grid-cols-1">
                 <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3">
                   <p className="text-[11px] uppercase tracking-[0.22em] text-ashen-400">Night</p>
-                  <p className="mt-1 text-xs">Werewolves strike. Seer and Doctor act in secret.</p>
+                  <p className="mt-1 text-xs">Werewolves strike. Seer and Bodyguard act in secret.</p>
                 </div>
                 <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3">
                   <p className="text-[11px] uppercase tracking-[0.22em] text-ashen-400">Day</p>

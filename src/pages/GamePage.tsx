@@ -6,7 +6,7 @@ import type { Role } from '../lib/types'
 const roleHints: Record<Role, string> = {
   werewolf: 'Coordinate with other werewolves and strike together.',
   seer: 'Inspect a player each night to learn their role.',
-  doctor: 'Choose someone to save from the werewolf attack.',
+  bodyguard: 'Protect one player each night, but not the same player on consecutive nights.',
   witch: 'Act after others. Heal the pending victim or poison someone once each.',
   hunter: 'If you fall, pick one player to take down with you.',
   villager: 'Discuss, deduce, and vote to eliminate werewolves.',
@@ -15,7 +15,7 @@ const roleHints: Record<Role, string> = {
 const roleIcons: Record<Role, string> = {
   werewolf: '🐺',
   seer: '🔮',
-  doctor: '🩺',
+  bodyguard: '🛡',
   witch: '🧪',
   hunter: '🏹',
   villager: '🧑‍🌾',
@@ -356,8 +356,8 @@ export default function GamePage() {
                       room.status === 'night'
                         ? me?.role === 'werewolf'
                           ? nightActions?.werewolfTarget
-                          : me?.role === 'doctor'
-                            ? nightActions?.doctorSave
+                          : me?.role === 'bodyguard'
+                            ? nightActions?.bodyguardProtect
                             : me?.role === 'seer'
                               ? nightActions?.seerInspect
                               : me?.role === 'witch'
@@ -374,7 +374,7 @@ export default function GamePage() {
                           ? Boolean(
                               isNightMainStep &&
                                 me?.isAlive &&
-                                (me.role === 'werewolf' || me.role === 'doctor' || me.role === 'seer')
+                                (me.role === 'werewolf' || me.role === 'bodyguard' || me.role === 'seer')
                             )
                           : Boolean(canHunterShoot)
                     return (
@@ -392,8 +392,9 @@ export default function GamePage() {
                             if (me?.role === 'werewolf' && player.id !== playerId) {
                               setNightAction({ werewolfTarget: player.id })
                             }
-                            if (me?.role === 'doctor') {
-                              setNightAction({ doctorSave: player.id })
+                            if (me?.role === 'bodyguard') {
+                              if (player.id === room.bodyguardLastProtectedId) return
+                              setNightAction({ bodyguardProtect: player.id })
                             }
                             if (me?.role === 'seer' && player.id !== playerId) {
                               setNightAction({ seerInspect: player.id })
@@ -536,17 +537,21 @@ export default function GamePage() {
                             (isNightMainStep
                               ? 'Click a player in the grid to choose the werewolf target.'
                               : 'Waiting for the Witch to act.')}
-                          {me.role === 'doctor' &&
+                          {me.role === 'bodyguard' &&
                             (isNightMainStep
-                              ? 'Click a player in the grid to choose who to save.'
+                              ? 'Click a player in the grid to protect them. You cannot protect the same player as last night.'
                               : 'Waiting for the Witch to act.')}
+                          {me.role === 'bodyguard' &&
+                            isNightMainStep &&
+                            room.bodyguardLastProtectedId &&
+                            ` Last protected: ${room.players[room.bodyguardLastProtectedId]?.name ?? 'Unknown'}.`}
                           {me.role === 'seer' &&
                             (isNightMainStep
                               ? 'Click a player in the grid to inspect them.'
                               : 'Waiting for the Witch to act.')}
                           {me.role === 'witch' &&
                             (isNightMainStep
-                              ? 'Wait for Werewolf, Doctor, and Seer to finish. You act next.'
+                              ? 'Wait for Werewolf, Bodyguard, and Seer to finish. You act next.'
                               : 'Choose to heal the pending victim, poison a player, or pass.')}
                           {me.role === 'villager' && 'You have no night action.'}
                           {me.role === 'hunter' && 'You have no night action.'}

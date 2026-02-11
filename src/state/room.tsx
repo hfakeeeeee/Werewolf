@@ -11,7 +11,7 @@ import {
 import { db } from '../lib/firebase'
 import type { NightActions, NightResult, Phase, Player, Role, Room, WitchState } from '../lib/types'
 
-const rolesPalette: Role[] = ['werewolf', 'seer', 'doctor', 'witch', 'hunter', 'villager']
+const rolesPalette: Role[] = ['werewolf', 'seer', 'bodyguard', 'witch', 'hunter', 'villager']
 const minPlayers = 4
 
 const phaseLabels: Record<Phase, string> = {
@@ -67,7 +67,7 @@ function buildRoleDeck(count: number): Role[] {
   const werewolves = Math.max(1, Math.floor(count / 4))
   const deck: Role[] = Array.from({ length: werewolves }, () => 'werewolf')
   if (count >= 5) deck.push('seer')
-  if (count >= 6) deck.push('doctor')
+  if (count >= 6) deck.push('bodyguard')
   if (count >= 7) deck.push('hunter')
   if (count >= 8) deck.push('witch')
   while (deck.length < count) deck.push('villager')
@@ -109,17 +109,21 @@ function computeVoteResult(votes: Record<string, string> | undefined) {
 function resolveMainNight(
   players: Player[],
   nightActions: NightActions | undefined
-): { pendingVictimId?: string; savedId?: string; seerResult?: { targetId: string; role: Role } } {
+): { pendingVictimId?: string; bodyguardSavedId?: string; seerResult?: { targetId: string; role: Role } } {
   if (!nightActions) return {}
   const killedId = nightActions.werewolfTarget
-  const savedId = nightActions.doctorSave
+  const savedId = nightActions.bodyguardProtect
   const pendingVictimId = killedId && killedId !== savedId ? killedId : undefined
   const seerTarget = nightActions.seerInspect
   const seerPlayer = players.find((p) => p.id === seerTarget)
-  const result: { pendingVictimId?: string; savedId?: string; seerResult?: { targetId: string; role: Role } } = {}
+  const result: {
+    pendingVictimId?: string
+    bodyguardSavedId?: string
+    seerResult?: { targetId: string; role: Role }
+  } = {}
 
   if (pendingVictimId) result.pendingVictimId = pendingVictimId
-  if (savedId) result.savedId = savedId
+  if (savedId) result.bodyguardSavedId = savedId
   if (seerPlayer) {
     result.seerResult = {
       targetId: seerPlayer.id,
@@ -151,7 +155,7 @@ function resolveFinalNight(
   const canHeal = Boolean(!witchState?.healUsed && action === 'heal' && effectivePendingVictim)
   const canPoison = Boolean(!witchState?.poisonUsed && action === 'poison' && poisonTargetId)
 
-  if (mainResult.savedId) result.savedId = mainResult.savedId
+  if (mainResult.bodyguardSavedId) result.bodyguardSavedId = mainResult.bodyguardSavedId
   if (mainResult.seerResult) result.seerResult = mainResult.seerResult
 
   if (effectivePendingVictim && !canHeal) {
@@ -446,6 +450,7 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
       phaseEndsAt: Date.now() + phaseDurations.night * 1000,
       votes: deleteField(),
       nightActions: deleteField(),
+      bodyguardLastProtectedId: deleteField(),
       witchState: {
         healUsed: false,
         poisonUsed: false,
@@ -485,7 +490,7 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
 
     const allowedKeysByRole: Record<Role, (keyof NightActions)[]> = {
       werewolf: ['werewolfTarget'],
-      doctor: ['doctorSave'],
+      bodyguard: ['bodyguardProtect'],
       seer: ['seerInspect'],
       witch: [],
       hunter: [],
@@ -497,6 +502,9 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
       allowed.includes(key as keyof NightActions)
     )
     if (entries.length === 0) return
+
+    const bodyguardTarget = entries.find(([key]) => key === 'bodyguardProtect')?.[1] as string | undefined
+    if (bodyguardTarget && room.bodyguardLastProtectedId === bodyguardTarget) return
 
     const ref = doc(db, 'rooms', room.code)
     const payload: Record<string, unknown> = {
@@ -590,6 +598,9 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
         healUsed: Boolean((room.witchState?.healUsed ?? false) || consumedHeal),
         poisonUsed: Boolean((room.witchState?.poisonUsed ?? false) || consumedPoison),
       }
+      if (room.nightActions?.bodyguardProtect) {
+        updates.bodyguardLastProtectedId = room.nightActions.bodyguardProtect
+      }
 
       updates.lastNight = result
       updates.nightActions = deleteField()
@@ -644,6 +655,7 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
       updatedAt: Date.now(),
       phaseEndsAt: deleteField(),
       nightStep: deleteField(),
+      bodyguardLastProtectedId: deleteField(),
       votes: deleteField(),
       nightActions: deleteField(),
       witchState: deleteField(),

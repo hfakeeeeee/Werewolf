@@ -1,6 +1,21 @@
 ﻿import { useNavigate } from 'react-router-dom'
 import { useRoom } from '../state/room'
 
+const featureCards = [
+  {
+    title: 'Private Rooms',
+    text: 'Spin up a room with a short invite code. Friends can join instantly.',
+  },
+  {
+    title: 'Real-Time Sync',
+    text: 'Powered by Firestore for instant state updates and phase changes.',
+  },
+  {
+    title: 'Night Roles',
+    text: 'Werewolf, Seer, Doctor, and Hunter come alive with guided actions.',
+  },
+]
+
 export default function LobbyPage() {
   const navigate = useNavigate()
   const {
@@ -33,9 +48,11 @@ export default function LobbyPage() {
         <div className="mx-auto max-w-6xl px-6 py-12">
           <header className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-ember" />
+              <div className="grid h-10 w-10 place-items-center rounded-xl bg-ember text-lg font-semibold text-slate-950">
+                W
+              </div>
               <div>
-                <p className="text-sm uppercase tracking-[0.3em] text-ashen-400">Werewolf Online</p>
+                <p className="text-xs uppercase tracking-[0.4em] text-ashen-400">Werewolf Online</p>
                 <h1 className="font-display text-2xl">Night Council</h1>
               </div>
             </div>
@@ -58,8 +75,8 @@ export default function LobbyPage() {
                 Gather your friends. Start a room. Survive the night.
               </h2>
               <p className="text-base text-ashen-200 md:text-lg">
-                Firebase-only MVP with Firestore listeners. Create a room, invite friends, and play live
-                with instant sync.
+                A stylish Firebase-only MVP for fast sessions, instant sync, and unforgettable late-night
+                stories.
               </p>
 
               <div className="grid gap-4 rounded-2xl border border-ashen-700 bg-ashen-900/70 p-6">
@@ -100,10 +117,19 @@ export default function LobbyPage() {
                 {status && <p className="text-sm text-ashen-300">{status}</p>}
                 {error && <p className="text-sm text-ember">{error}</p>}
               </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                {featureCards.map((card) => (
+                  <div key={card.title} className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-5">
+                    <h3 className="font-display text-lg">{card.title}</h3>
+                    <p className="mt-2 text-sm text-ashen-200">{card.text}</p>
+                  </div>
+                ))}
+              </div>
             </section>
 
             <aside className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-6 shadow-inky">
-              <h3 className="font-display text-xl">Room Preview</h3>
+              <h3 className="font-display text-xl">Lobby Preview</h3>
               <div className="mt-4 grid gap-4">
                 <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-4">
                   <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Players</p>
@@ -118,9 +144,17 @@ export default function LobbyPage() {
                   </div>
                 </div>
                 <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-4">
-                  <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Next step</p>
+                  <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Room Steps</p>
+                  <ol className="mt-2 list-decimal space-y-2 pl-4 text-sm text-ashen-200">
+                    <li>Create a room or enter a code.</li>
+                    <li>Have everyone ready up.</li>
+                    <li>Start the night and play!</li>
+                  </ol>
+                </div>
+                <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-4">
+                  <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Need help?</p>
                   <p className="mt-2 text-sm text-ashen-200">
-                    Create a room or join with a code to start the lobby.
+                    Share the room code with friends. You can reset any game from the host panel.
                   </p>
                 </div>
               </div>

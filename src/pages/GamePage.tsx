@@ -66,7 +66,7 @@ function avatarSeed(id: string) {
   return hash
 }
 
-function Avatar({ seed }: { seed: number }) {
+function Avatar({ seed, sizeClass = 'h-14 w-14' }: { seed: number; sizeClass?: string }) {
   const skin = pickFrom(skinTones, seed)
   const hair = pickFrom(hairColors, seed + 3)
   const shirt = pickFrom(shirtColors, seed + 7)
@@ -82,7 +82,7 @@ function Avatar({ seed }: { seed: number }) {
   const hasHeadband = accessory === 'headband'
 
   return (
-    <svg viewBox="0 0 140 140" className="h-24 w-24" aria-hidden="true">
+    <svg viewBox="0 0 140 140" className={sizeClass} aria-hidden="true">
       <rect x="0" y="0" width="140" height="140" fill="none" />
       <circle cx="70" cy="56" r="26" fill={skin} />
       <path d="M28 132c6-28 26-42 42-42h0c16 0 36 14 42 42" fill={shirt} />
@@ -280,7 +280,7 @@ export default function GamePage() {
           <div className="parallax-layer parallax-fast" />
         </div>
         <div className="hero-glow" />
-        <div className="relative z-10 mx-auto px-6 py-12">
+        <div className="relative z-10 mx-auto px-5 py-8">
           {showRoleWheel && (
             <div className="fixed inset-0 z-50 grid place-items-center bg-ashen/90 px-6">
               <div className="w-full max-w-md rounded-2xl border border-ashen-700 bg-ashen-900/90 p-8 text-center shadow-inky">
@@ -293,7 +293,7 @@ export default function GamePage() {
               </div>
             </div>
           )}
-          <header className="flex flex-wrap items-center justify-between gap-4">
+          <header className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="grid h-10 w-10 place-items-center rounded-xl bg-ember text-lg font-semibold text-slate-950">
                 W
@@ -312,6 +312,14 @@ export default function GamePage() {
                   {countdown}s left
                 </span>
               )}
+              {isHost && room.status !== 'results' && (
+                <button
+                  onClick={advancePhase}
+                  className="rounded-lg bg-ember px-3 py-2 text-xs font-semibold text-slate-950"
+                >
+                  Advance Phase
+                </button>
+              )}
               <button
                 onClick={goBack}
                 className="rounded-lg border border-ashen-500 px-4 py-2 text-sm font-semibold text-ashen-100"
@@ -321,241 +329,9 @@ export default function GamePage() {
             </div>
           </header>
 
-          <main className="mt-10 grid gap-10 lg:grid-cols-[1.15fr_0.85fr]">
+          <main className="mt-5 grid gap-5 lg:grid-cols-[1.25fr_0.75fr]">
             <section className="space-y-6">
-              <div className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-6">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Phase</p>
-                    <h2 className="font-display text-2xl">
-                      {phaseLabels[room.status]} · Day {room.dayCount || 1}
-                    </h2>
-                  </div>
-                  {isHost && room.status !== 'results' && (
-                    <button
-                      onClick={advancePhase}
-                      className="rounded-lg bg-ember px-4 py-2 text-sm font-semibold text-slate-950"
-                    >
-                      Advance Phase
-                    </button>
-                  )}
-                </div>
-                  <div className="mt-4 grid gap-2 text-sm text-ashen-200">
-                    <p>
-                      You are{' '}
-                      <span className="text-ashen-100">
-                        {roleRevealed ? me?.role ?? '...' : '???'}
-                      </span>
-                    </p>
-                    <p className="text-ashen-300">
-                      {roleRevealed && me?.role ? roleHints[me.role] : 'Role hidden until the wheel stops.'}
-                    </p>
-                    <p>
-                      Status: <span className="text-ashen-100">{me?.isAlive ? 'Alive' : 'Eliminated'}</span>
-                    </p>
-                  </div>
-                {room.status === 'lobby' && (
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    {me ? (
-                      <button
-                        onClick={toggleReady}
-                        className="rounded-lg border border-ashen-500 px-4 py-2 text-sm font-semibold text-ashen-100"
-                      >
-                        {me.isReady ? 'Unready' : 'Ready'}
-                      </button>
-                    ) : (
-                      <button
-                        onClick={rejoinRoom}
-                        className="rounded-lg border border-ashen-500 px-4 py-2 text-sm font-semibold text-ashen-100"
-                      >
-                        Rejoin Room
-                      </button>
-                    )}
-                    {isHost && (
-                      <button
-                        onClick={startGame}
-                        className="rounded-lg bg-ember px-4 py-2 text-sm font-semibold text-slate-950"
-                      >
-                        Start Game
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {room.status === 'night' && me?.isAlive && (
-                  <div className="mt-4 space-y-4">
-                    {me.role === 'werewolf' && (
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Werewolf target</p>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {alivePlayers
-                            .filter((p) => p.id !== playerId)
-                            .map((player) => (
-                              <button
-                                key={player.id}
-                                onClick={() => setNightAction({ werewolfTarget: player.id })}
-                                className={`rounded-full px-3 py-1 text-xs ${
-                                  nightActions?.werewolfTarget === player.id
-                                    ? 'bg-ember text-slate-950'
-                                    : 'bg-ashen-700/70 text-ashen-100'
-                                }`}
-                              >
-                                {player.name}
-                              </button>
-                            ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {me.role === 'doctor' && (
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Doctor save</p>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {alivePlayers.map((player) => (
-                            <button
-                              key={player.id}
-                              onClick={() => setNightAction({ doctorSave: player.id })}
-                              className={`rounded-full px-3 py-1 text-xs ${
-                                nightActions?.doctorSave === player.id
-                                  ? 'bg-ember text-slate-950'
-                                  : 'bg-ashen-700/70 text-ashen-100'
-                              }`}
-                            >
-                              {player.name}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {me.role === 'seer' && (
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Seer inspect</p>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {alivePlayers
-                            .filter((p) => p.id !== playerId)
-                            .map((player) => (
-                              <button
-                                key={player.id}
-                                onClick={() => setNightAction({ seerInspect: player.id })}
-                                className={`rounded-full px-3 py-1 text-xs ${
-                                  nightActions?.seerInspect === player.id
-                                    ? 'bg-ember text-slate-950'
-                                    : 'bg-ashen-700/70 text-ashen-100'
-                                }`}
-                              >
-                                {player.name}
-                              </button>
-                            ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {room.status === 'day' && (
-                  <div className="mt-4 rounded-xl border border-ashen-700 bg-ashen-800/70 p-4 text-sm text-ashen-200">
-                    {lastNight?.killedId ? (
-                      <p>
-                        Dawn breaks. {room.players[lastNight.killedId]?.name ?? 'Someone'} was taken in the
-                        night.
-                      </p>
-                    ) : (
-                      <p>No one was eliminated overnight.</p>
-                    )}
-                    {me?.role === 'seer' && lastNight?.seerResult && (
-                      <p className="mt-2 text-ashen-100">
-                        Your vision: {room.players[lastNight.seerResult.targetId]?.name} is a{' '}
-                        {lastNight.seerResult.role}.
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {room.status === 'voting' && me?.isAlive && (
-                  <div className="mt-4 space-y-3">
-                    <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Vote to eliminate</p>
-                    <div className="flex flex-wrap gap-2">
-                      {alivePlayers
-                        .filter((p) => p.id !== playerId)
-                        .map((player) => (
-                          <button
-                            key={player.id}
-                            onClick={() => setVote(player.id)}
-                            className={`rounded-full px-3 py-1 text-xs ${
-                              myVote === player.id
-                                ? 'bg-ember text-slate-950'
-                                : 'bg-ashen-700/70 text-ashen-100'
-                            }`}
-                          >
-                            {player.name}
-                          </button>
-                        ))}
-                      <button
-                        onClick={() => setVote('skip')}
-                        className={`rounded-full px-3 py-1 text-xs ${
-                          myVote === 'skip' ? 'bg-ember text-slate-950' : 'bg-ashen-700/70 text-ashen-100'
-                        }`}
-                      >
-                        Skip
-                      </button>
-                    </div>
-                    <div className="text-sm text-ashen-300">
-                      {Object.values(room.votes ?? {}).length} vote(s) cast.
-                    </div>
-                  </div>
-                )}
-
-                {room.status === 'results' && (
-                  <div className="mt-4 rounded-xl border border-ashen-700 bg-ashen-800/70 p-4 text-sm text-ashen-200">
-                    <p className="font-display text-xl text-ashen-100">
-                      {room.winner === 'villagers' ? 'Villagers win!' : 'Werewolves win!'}
-                    </p>
-                    <p className="mt-2">{room.winReason}</p>
-                  </div>
-                )}
-
-                {waitingForHunter && (
-                  <div className="mt-4 rounded-xl border border-ember/40 bg-ember/10 p-4 text-sm text-ashen-100">
-                    Waiting for the Hunter's final shot...
-                  </div>
-                )}
-
-                {canHunterShoot && (
-                  <div className="mt-4 space-y-3">
-                    <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Hunter last shot</p>
-                    <div className="flex flex-wrap gap-2">
-                      {alivePlayers
-                        .filter((p) => p.id !== playerId)
-                        .map((player) => (
-                          <button
-                            key={player.id}
-                            onClick={() => sendHunterShot(player.id)}
-                            className="rounded-full bg-ember px-3 py-1 text-xs text-slate-950"
-                          >
-                            {player.name}
-                          </button>
-                        ))}
-                    </div>
-                    <p className="text-xs text-ashen-400">
-                      You were eliminated. Choose one player to take with you.
-                    </p>
-                  </div>
-                )}
-
-                <div className="mt-4 flex flex-wrap gap-3">
-                  {isHost && (
-                    <button
-                      onClick={resetLobby}
-                      className="rounded-lg border border-ashen-500 px-4 py-2 text-sm font-semibold text-ashen-100"
-                    >
-                      Reset to Lobby
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-6">
+              <div className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div>
                     <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Players</p>
@@ -565,45 +341,56 @@ export default function GamePage() {
                     {alivePlayers.length} alive / {orderedPlayers.length} total
                   </span>
                 </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {orderedPlayers.map((player) => {
+                <div className="mt-2 grid auto-rows-fr gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                  {Array.from({ length: 16 }).map((_, index) => {
+                    const player = orderedPlayers[index]
+                    if (!player) {
+                      return (
+                        <div
+                          key={`slot-${index}`}
+                          className="rounded-2xl border border-dashed border-ashen-700/60 bg-ashen-900/40 p-3 text-xs text-ashen-500"
+                        >
+                          Empty slot
+                        </div>
+                      )
+                    }
                     const gradient = pickGradient(player.id)
                     const isMe = player.id === playerId
                     const showRole = isMe && player.role
                     return (
                       <div
                         key={player.id}
-                        className={`overflow-hidden rounded-2xl border border-ashen-700 bg-ashen-800/70 transition ${
+                        className={`flex h-full flex-col overflow-hidden rounded-2xl border border-ashen-700 bg-ashen-800/70 transition ${
                           player.isAlive ? 'opacity-100' : 'opacity-40'
                         }`}
                       >
                         <div
-                          className={`flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] ${
+                          className={`flex items-center justify-between px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] ${
                             isMe ? 'bg-ember text-slate-950' : 'bg-ashen-700 text-ashen-100'
                           }`}
                         >
                           <span>{player.name}</span>
                           {isMe && <span className="text-[10px]">You</span>}
                         </div>
-                        <div className="relative grid place-items-center gap-3 bg-ashen-900/40 p-4">
+                        <div className="relative grid flex-1 place-items-center gap-1 bg-ashen-900/40 p-2">
                           <div
-                            className={`grid h-20 w-20 place-items-center rounded-2xl bg-gradient-to-br ${gradient} text-lg font-semibold text-slate-950 shadow-lg`}
+                            className={`grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br ${gradient} text-sm font-semibold text-slate-950 shadow-lg`}
                           >
                             {initials(player.name)}
                           </div>
-                          <div className="relative grid h-24 w-full place-items-center rounded-xl border border-ashen-700 bg-ashen-800/60">
-                            <Avatar seed={avatarSeed(player.id)} />
+                          <div className="relative grid h-16 w-full place-items-center overflow-hidden rounded-xl border border-ashen-700 bg-ashen-800/60">
+                            <Avatar seed={avatarSeed(player.id)} sizeClass="h-12 w-12" />
                           </div>
                           {!player.isAlive && (
                             <div
-                              className="absolute right-3 top-3 rounded-full bg-ashen-900/80 px-2 py-1 text-xs text-ashen-300"
+                              className="absolute right-2 top-2 rounded-full bg-ashen-900/80 px-2 py-1 text-[10px] text-ashen-300"
                               aria-label="Eliminated"
                             >
                               ☠
                             </div>
                           )}
                         </div>
-                        <div className="flex flex-wrap items-center gap-2 px-3 py-3 text-[10px] uppercase tracking-[0.2em] text-ashen-200">
+                        <div className="flex flex-wrap items-center gap-1 px-2 py-2 text-[9px] uppercase tracking-[0.2em] text-ashen-200">
                           <span className="rounded-full bg-ashen-700/70 px-2 py-1">
                             {player.isAlive ? 'Active' : 'Out'}
                           </span>
@@ -635,9 +422,234 @@ export default function GamePage() {
             </section>
 
             <aside className="space-y-6">
-              <div className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-6 shadow-inky">
+              <div className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-3">
+                <div className="grid gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">You</p>
+                    <div className="mt-2 grid gap-1 text-sm text-ashen-200">
+                      <p>
+                        Role:{' '}
+                        <span className="text-ashen-100">
+                          {roleRevealed ? me?.role ?? '...' : '???'}
+                        </span>
+                      </p>
+                      <p className="text-ashen-300">
+                        {roleRevealed && me?.role
+                          ? roleHints[me.role]
+                          : 'Role hidden until the wheel stops.'}
+                      </p>
+                      <p>
+                        Status:{' '}
+                        <span className="text-ashen-100">{me?.isAlive ? 'Alive' : 'Eliminated'}</span>
+                      </p>
+                    </div>
+                    {room.status === 'lobby' && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {me ? (
+                          <button
+                            onClick={toggleReady}
+                            className="rounded-lg border border-ashen-500 px-4 py-2 text-sm font-semibold text-ashen-100"
+                          >
+                            {me.isReady ? 'Unready' : 'Ready'}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={rejoinRoom}
+                            className="rounded-lg border border-ashen-500 px-4 py-2 text-sm font-semibold text-ashen-100"
+                          >
+                            Rejoin Room
+                          </button>
+                        )}
+                        {isHost && (
+                          <button
+                            onClick={startGame}
+                            className="rounded-lg bg-ember px-4 py-2 text-sm font-semibold text-slate-950"
+                          >
+                            Start Game
+                          </button>
+                        )}
+                        {isHost && (
+                          <button
+                            onClick={resetLobby}
+                            className="rounded-lg border border-ashen-500 px-4 py-2 text-sm font-semibold text-ashen-100"
+                          >
+                            Reset to Lobby
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    {room.status === 'night' && me?.isAlive && (
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Night actions</p>
+                        <div className="mt-2 space-y-2">
+                          {me.role === 'werewolf' && (
+                            <div>
+                              <p className="text-[11px] text-ashen-300">Werewolf target</p>
+                              <div className="mt-1 flex flex-wrap gap-2">
+                                {alivePlayers
+                                  .filter((p) => p.id !== playerId)
+                                  .map((player) => (
+                                    <button
+                                      key={player.id}
+                                      onClick={() => setNightAction({ werewolfTarget: player.id })}
+                                      className={`rounded-full px-3 py-1 text-xs ${
+                                        nightActions?.werewolfTarget === player.id
+                                          ? 'bg-ember text-slate-950'
+                                          : 'bg-ashen-700/70 text-ashen-100'
+                                      }`}
+                                    >
+                                      {player.name}
+                                    </button>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {me.role === 'doctor' && (
+                            <div>
+                              <p className="text-[11px] text-ashen-300">Doctor save</p>
+                              <div className="mt-1 flex flex-wrap gap-2">
+                                {alivePlayers.map((player) => (
+                                  <button
+                                    key={player.id}
+                                    onClick={() => setNightAction({ doctorSave: player.id })}
+                                    className={`rounded-full px-3 py-1 text-xs ${
+                                      nightActions?.doctorSave === player.id
+                                        ? 'bg-ember text-slate-950'
+                                        : 'bg-ashen-700/70 text-ashen-100'
+                                    }`}
+                                  >
+                                    {player.name}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {me.role === 'seer' && (
+                            <div>
+                              <p className="text-[11px] text-ashen-300">Seer inspect</p>
+                              <div className="mt-1 flex flex-wrap gap-2">
+                                {alivePlayers
+                                  .filter((p) => p.id !== playerId)
+                                  .map((player) => (
+                                    <button
+                                      key={player.id}
+                                      onClick={() => setNightAction({ seerInspect: player.id })}
+                                      className={`rounded-full px-3 py-1 text-xs ${
+                                        nightActions?.seerInspect === player.id
+                                          ? 'bg-ember text-slate-950'
+                                          : 'bg-ashen-700/70 text-ashen-100'
+                                      }`}
+                                    >
+                                      {player.name}
+                                    </button>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {room.status === 'day' && (
+                      <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
+                        {lastNight?.killedId ? (
+                          <p>
+                            Dawn breaks. {room.players[lastNight.killedId]?.name ?? 'Someone'} was taken in the
+                            night.
+                          </p>
+                        ) : (
+                          <p>No one was eliminated overnight.</p>
+                        )}
+                        {me?.role === 'seer' && lastNight?.seerResult && (
+                          <p className="mt-2 text-ashen-100">
+                            Your vision: {room.players[lastNight.seerResult.targetId]?.name} is a{' '}
+                            {lastNight.seerResult.role}.
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {room.status === 'voting' && me?.isAlive && (
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Vote to eliminate</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {alivePlayers
+                            .filter((p) => p.id !== playerId)
+                            .map((player) => (
+                              <button
+                                key={player.id}
+                                onClick={() => setVote(player.id)}
+                                className={`rounded-full px-3 py-1 text-xs ${
+                                  myVote === player.id
+                                    ? 'bg-ember text-slate-950'
+                                    : 'bg-ashen-700/70 text-ashen-100'
+                                }`}
+                              >
+                                {player.name}
+                              </button>
+                            ))}
+                          <button
+                            onClick={() => setVote('skip')}
+                            className={`rounded-full px-3 py-1 text-xs ${
+                              myVote === 'skip' ? 'bg-ember text-slate-950' : 'bg-ashen-700/70 text-ashen-100'
+                            }`}
+                          >
+                            Skip
+                          </button>
+                        </div>
+                        <div className="mt-2 text-sm text-ashen-300">
+                          {Object.values(room.votes ?? {}).length} vote(s) cast.
+                        </div>
+                      </div>
+                    )}
+
+                    {room.status === 'results' && (
+                      <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
+                        <p className="font-display text-xl text-ashen-100">
+                          {room.winner === 'villagers' ? 'Villagers win!' : 'Werewolves win!'}
+                        </p>
+                        <p className="mt-2">{room.winReason}</p>
+                      </div>
+                    )}
+
+                    {waitingForHunter && (
+                      <div className="rounded-xl border border-ember/40 bg-ember/10 p-3 text-sm text-ashen-100">
+                        Waiting for the Hunter's final shot...
+                      </div>
+                    )}
+
+                    {canHunterShoot && (
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Hunter last shot</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {alivePlayers
+                            .filter((p) => p.id !== playerId)
+                            .map((player) => (
+                              <button
+                                key={player.id}
+                                onClick={() => sendHunterShot(player.id)}
+                                className="rounded-full bg-ember px-3 py-1 text-xs text-slate-950"
+                              >
+                                {player.name}
+                              </button>
+                            ))}
+                        </div>
+                        <p className="mt-2 text-xs text-ashen-400">
+                          You were eliminated. Choose one player to take with you.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-3 shadow-inky">
                 <h3 className="font-display text-xl">Chat</h3>
-                <div className="mt-4 flex h-[320px] flex-col gap-3 overflow-y-auto rounded-xl border border-ashen-700 bg-ashen-800/70 p-4">
+                <div className="mt-2 flex h-[220px] flex-col gap-3 overflow-y-auto rounded-xl border border-ashen-700 bg-ashen-800/70 p-3">
                   {visibleMessages?.length ? (
                     visibleMessages.map((msg) => (
                       <div key={msg.id} className="text-sm text-ashen-200">
@@ -652,7 +664,7 @@ export default function GamePage() {
                   <p className="mt-2 text-xs text-ashen-400">Night chat is for werewolves only.</p>
                 )}
                 {error && <p className="mt-2 text-xs text-ember">{error}</p>}
-                <div className="mt-4 flex gap-2">
+                <div className="mt-3 flex gap-2">
                   <input
                     value={message}
                     onChange={(event) => setMessage(event.target.value)}
@@ -670,7 +682,7 @@ export default function GamePage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-6">
+              <div className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-4">
                 <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Roles in play</p>
                 <div className="mt-3 grid gap-2 text-sm text-ashen-100">
                   {Object.entries(

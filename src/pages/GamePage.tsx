@@ -274,14 +274,14 @@ export default function GamePage() {
   }
 
   return (
-    <div className="min-h-screen bg-ashen text-slate-100">
+    <div className="min-h-screen bg-ashen text-slate-100 lg:h-screen lg:overflow-hidden">
       <div className="relative overflow-hidden">
         <div className="pointer-events-none absolute inset-0 opacity-70">
           <div className="parallax-layer parallax-slow" />
           <div className="parallax-layer parallax-fast" />
         </div>
         <div className="hero-glow" />
-        <div className="relative z-10 mx-auto px-5 py-8">
+        <div className="relative z-10 mx-auto px-5 py-6 lg:h-full">
           {showRoleWheel && (
             <div className="fixed inset-0 z-50 grid place-items-center bg-ashen/90 px-6">
               <div className="w-full max-w-md rounded-2xl border border-ashen-700 bg-ashen-900/90 p-8 text-center shadow-inky">
@@ -338,9 +338,9 @@ export default function GamePage() {
             </div>
           </header>
 
-          <main className="mt-5 grid gap-5 lg:grid-cols-[1.25fr_0.75fr]">
-            <section className="space-y-6">
-              <div className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-3">
+          <main className="mt-4 grid gap-4 lg:h-[calc(100vh-120px)] lg:grid-cols-[1.25fr_0.75fr] lg:overflow-hidden">
+            <section className="space-y-4 lg:flex lg:h-full lg:flex-col lg:overflow-hidden">
+              <div className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-3 lg:flex lg:h-full lg:flex-col">
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div>
                     <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Players</p>
@@ -350,7 +350,7 @@ export default function GamePage() {
                     {alivePlayers.length} alive / {orderedPlayers.length} total
                   </span>
                 </div>
-                <div className="mt-2 grid auto-rows-fr gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                <div className="mt-2 grid flex-1 auto-rows-fr gap-2 overflow-hidden sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                   {Array.from({ length: 16 }).map((_, index) => {
                     const player = orderedPlayers[index]
                     if (!player) {
@@ -475,7 +475,7 @@ export default function GamePage() {
               </div>
             </section>
 
-            <aside className="space-y-6">
+            <aside className="space-y-4 lg:flex lg:h-full lg:flex-col lg:overflow-hidden">
               <div className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-3">
                 <div className="grid gap-3">
                   <div>
@@ -616,9 +616,9 @@ export default function GamePage() {
                   </div>
                 </div>
               </div>
-              <div className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-3 shadow-inky">
+              <div className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-3 shadow-inky lg:flex lg:flex-1 lg:flex-col lg:min-h-0">
                 <h3 className="font-display text-xl">Chat</h3>
-                <div className="mt-2 flex h-[220px] flex-col gap-3 overflow-y-auto rounded-xl border border-ashen-700 bg-ashen-800/70 p-3">
+                <div className="mt-2 flex flex-1 flex-col gap-3 overflow-y-auto rounded-xl border border-ashen-700 bg-ashen-800/70 p-3">
                   {visibleMessages?.length ? (
                     visibleMessages.map((msg) => (
                       <div key={msg.id} className="text-sm text-ashen-200">
@@ -659,7 +659,7 @@ export default function GamePage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-4">
+              <div className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-4 lg:flex-none">
                 <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Roles in play</p>
                 <div className="mt-3 grid gap-2 text-sm text-ashen-100">
                   {Object.entries(

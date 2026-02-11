@@ -7,6 +7,7 @@ export interface Player {
   name: string
   isHost: boolean
   isAlive: boolean
+  isReady: boolean
   role?: Role
   joinedAt: number
 }

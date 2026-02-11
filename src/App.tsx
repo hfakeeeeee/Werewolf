@@ -8,7 +8,7 @@ import {
   updateDoc,
 } from 'firebase/firestore'
 import { db } from './lib/firebase'
-import type { Phase, Player, Role, Room } from './lib/types'
+import type { NightActions, Phase, Player, Role, Room } from './lib/types'
 
 const rolesPalette: Role[] = ['werewolf', 'seer', 'doctor', 'hunter', 'villager']
 const minPlayers = 4
@@ -19,6 +19,12 @@ const phaseLabels: Record<Phase, string> = {
   day: 'Day',
   voting: 'Voting',
   results: 'Results',
+}
+
+const phaseDurations: Record<Exclude<Phase, 'lobby' | 'results'>, number> = {
+  night: 45,
+  day: 60,
+  voting: 30,
 }
 
 function getPlayerId() {
@@ -65,6 +71,62 @@ function buildRoleDeck(count: number): Role[] {
   return shuffle(deck)
 }
 
+function nextPhase(current: Phase): Phase {
+  switch (current) {
+    case 'night':
+      return 'day'
+    case 'day':
+      return 'voting'
+    case 'voting':
+      return 'night'
+    default:
+      return 'night'
+  }
+}
+
+function computeVoteResult(votes: Record<string, string> | undefined) {
+  if (!votes) return null
+  const tally: Record<string, number> = {}
+  Object.values(votes).forEach((targetId) => {
+    tally[targetId] = (tally[targetId] ?? 0) + 1
+  })
+  const entries = Object.entries(tally).filter(([id]) => id !== 'skip')
+  if (entries.length === 0) return null
+  entries.sort((a, b) => b[1] - a[1])
+  return {
+    targetId: entries[0][0],
+    votes: entries[0][1],
+  }
+}
+
+function resolveNight(
+  players: Player[],
+  nightActions: NightActions | undefined
+): { killedId?: string; savedId?: string; seerResult?: { targetId: string; role: Role } } {
+  if (!nightActions) return {}
+  const killedId = nightActions.werewolfTarget
+  const savedId = nightActions.doctorSave
+  const killedFinal = killedId && killedId !== savedId ? killedId : undefined
+  const seerTarget = nightActions.seerInspect
+  const seerPlayer = players.find((p) => p.id === seerTarget)
+  const result: {
+    killedId?: string
+    savedId?: string
+    seerResult?: { targetId: string; role: Role }
+  } = {}
+
+  if (killedFinal) result.killedId = killedFinal
+  if (savedId) result.savedId = savedId
+  if (seerPlayer) {
+    result.seerResult = {
+      targetId: seerPlayer.id,
+      role: seerPlayer.role ?? 'villager',
+    }
+  }
+
+  return result
+}
+
 export default function App() {
   const playerId = useMemo(() => getPlayerId(), [])
   const [playerName, setPlayerName] = useState(getStoredName())
@@ -75,6 +137,12 @@ export default function App() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [rejoining, setRejoining] = useState(false)
+  const [now, setNow] = useState(Date.now())
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     if (!activeCode) return
@@ -114,6 +182,31 @@ export default function App() {
     }).finally(() => setRejoining(false))
   }, [playerId, rejoining, room])
 
+  useEffect(() => {
+    if (!room) return
+    if (room.status === 'lobby' || room.status === 'results') return
+    if (!room.players?.[playerId]?.isHost) return
+
+    const seconds = phaseDurations[room.status as keyof typeof phaseDurations]
+    if (!seconds) return
+
+    if (!room.phaseEndsAt || room.phaseEndsAt < Date.now()) {
+      updateDoc(doc(db, 'rooms', room.code), {
+        phaseEndsAt: Date.now() + seconds * 1000,
+        updatedAt: Date.now(),
+      })
+    }
+  }, [playerId, room])
+
+  useEffect(() => {
+    if (!room) return
+    if (room.status === 'lobby' || room.status === 'results') return
+    if (!room.players?.[playerId]?.isHost) return
+    if (!room.phaseEndsAt) return
+    if (now < room.phaseEndsAt) return
+    advancePhase()
+  }, [now, playerId, room])
+
   const me = room?.players?.[playerId]
   const isHost = me?.isHost
 
@@ -144,14 +237,14 @@ export default function App() {
       return
     }
 
-    const now = Date.now()
+    const nowStamp = Date.now()
     const player: Player = {
       id: playerId,
       name,
       isHost: true,
       isAlive: true,
       isReady: false,
-      joinedAt: now,
+      joinedAt: nowStamp,
     }
 
     const roomData: Room = {
@@ -159,8 +252,8 @@ export default function App() {
       code,
       status: 'lobby',
       hostId: playerId,
-      createdAt: now,
-      updatedAt: now,
+      createdAt: nowStamp,
+      updatedAt: nowStamp,
       players: { [playerId]: player },
       dayCount: 0,
     }
@@ -197,18 +290,18 @@ export default function App() {
       return
     }
 
-    const now = Date.now()
+    const nowStamp = Date.now()
     await setDoc(
       ref,
       {
-        updatedAt: now,
+        updatedAt: nowStamp,
         [`players.${playerId}`]: {
           id: playerId,
           name,
           isHost: false,
           isAlive: true,
           isReady: false,
-          joinedAt: now,
+          joinedAt: nowStamp,
         },
       },
       { merge: true }
@@ -250,6 +343,11 @@ export default function App() {
       status: 'night',
       dayCount: 1,
       updatedAt: Date.now(),
+      phaseEndsAt: Date.now() + phaseDurations.night * 1000,
+      votes: deleteField(),
+      nightActions: deleteField(),
+      lastNight: deleteField(),
+      lastEliminated: deleteField(),
     }
 
     players.forEach((player, index) => {
@@ -258,6 +356,84 @@ export default function App() {
       updates[`players.${player.id}.isReady`] = false
     })
 
+    await updateDoc(doc(db, 'rooms', room.code), updates)
+  }
+
+  const setVote = async (targetId: string) => {
+    if (!room || !me) return
+    const ref = doc(db, 'rooms', room.code)
+    await updateDoc(ref, {
+      [`votes.${playerId}`]: targetId,
+      updatedAt: Date.now(),
+    })
+  }
+
+  const setNightAction = async (update: Partial<NightActions>) => {
+    if (!room || !me) return
+    const ref = doc(db, 'rooms', room.code)
+    const payload: Record<string, unknown> = {
+      updatedAt: Date.now(),
+    }
+    Object.entries(update).forEach(([key, value]) => {
+      payload[`nightActions.${key}`] = value
+    })
+    await updateDoc(ref, payload)
+  }
+
+  const advancePhase = async () => {
+    if (!room || !isHost) return
+    const players = Object.values(room.players)
+    const next = nextPhase(room.status)
+    const updates: Record<string, unknown> = {
+      status: next,
+      updatedAt: Date.now(),
+      votes: deleteField(),
+      phaseEndsAt:
+        next !== 'lobby' && next !== 'results'
+          ? Date.now() + phaseDurations[next as keyof typeof phaseDurations] * 1000
+          : deleteField(),
+    }
+
+    if (room.status === 'night') {
+      const result = resolveNight(players, room.nightActions)
+      if (result.killedId) {
+        updates[`players.${result.killedId}.isAlive`] = false
+      }
+      updates.lastNight = result
+      updates.nightActions = deleteField()
+    }
+
+    if (room.status === 'voting') {
+      const voteResult = computeVoteResult(room.votes)
+      if (voteResult?.targetId) {
+        updates[`players.${voteResult.targetId}.isAlive`] = false
+        updates.lastEliminated = [voteResult.targetId]
+      }
+    }
+
+    if (next === 'night') {
+      updates.dayCount = (room.dayCount || 1) + 1
+    }
+
+    await updateDoc(doc(db, 'rooms', room.code), updates)
+  }
+
+  const resetLobby = async () => {
+    if (!room || !isHost) return
+    const updates: Record<string, unknown> = {
+      status: 'lobby',
+      updatedAt: Date.now(),
+      phaseEndsAt: deleteField(),
+      votes: deleteField(),
+      nightActions: deleteField(),
+      lastNight: deleteField(),
+      lastEliminated: deleteField(),
+    }
+    Object.values(room.players).forEach((player) => {
+      updates[`players.${player.id}.isReady`] = false
+      updates[`players.${player.id}.role`] = deleteField()
+      updates[`players.${player.id}.isAlive`] = true
+    })
     await updateDoc(doc(db, 'rooms', room.code), updates)
   }
 
@@ -306,6 +482,12 @@ export default function App() {
       { merge: true }
     )
   }
+
+  const alivePlayers = room ? Object.values(room.players).filter((p) => p.isAlive) : []
+  const countdown = room?.phaseEndsAt ? Math.max(0, Math.ceil((room.phaseEndsAt - now) / 1000)) : null
+  const myVote = room?.votes?.[playerId]
+  const nightActions = room?.nightActions
+  const lastNight = room?.lastNight
 
   return (
     <div className="min-h-screen bg-ashen text-slate-100">
@@ -390,7 +572,7 @@ export default function App() {
                 {error && <p className="text-sm text-ember">{error}</p>}
               </div>
 
-              {room && (
+              {room && room.status === 'lobby' && (
                 <div className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-6">
                   <div className="flex items-center justify-between">
                     <div>
@@ -443,6 +625,198 @@ export default function App() {
                         Start Game
                       </button>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {room && room.status !== 'lobby' && (
+                <div className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-6">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Phase</p>
+                      <h3 className="font-display text-2xl">
+                        {phaseLabels[room.status]} · Day {room.dayCount || 1}
+                      </h3>
+                    </div>
+                    <span className="rounded-full border border-ashen-600 px-3 py-1 text-xs text-ashen-200">
+                      Room {room.code}
+                    </span>
+                  </div>
+                  <div className="mt-4 grid gap-2 text-sm text-ashen-200">
+                    <p>
+                      You are <span className="text-ashen-100">{me?.role ?? '...'}.</span>
+                    </p>
+                    <p>
+                      Status:{' '}
+                      <span className="text-ashen-100">
+                        {me?.isAlive ? 'Alive' : 'Eliminated'}
+                      </span>
+                    </p>
+                    {countdown !== null && (
+                      <p>
+                        Time left: <span className="text-ashen-100">{countdown}s</span>
+                      </p>
+                    )}
+                  </div>
+
+                  {room.status === 'night' && me?.isAlive && (
+                    <div className="mt-4 space-y-4">
+                      {me.role === 'werewolf' && (
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Werewolf target</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {alivePlayers
+                              .filter((p) => p.id !== playerId)
+                              .map((player) => (
+                                <button
+                                  key={player.id}
+                                  onClick={() => setNightAction({ werewolfTarget: player.id })}
+                                  className={`rounded-full px-3 py-1 text-xs ${
+                                    nightActions?.werewolfTarget === player.id
+                                      ? 'bg-ember text-slate-950'
+                                      : 'bg-ashen-700/70 text-ashen-100'
+                                  }`}
+                                >
+                                  {player.name}
+                                </button>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {me.role === 'doctor' && (
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Doctor save</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {alivePlayers.map((player) => (
+                              <button
+                                key={player.id}
+                                onClick={() => setNightAction({ doctorSave: player.id })}
+                                className={`rounded-full px-3 py-1 text-xs ${
+                                  nightActions?.doctorSave === player.id
+                                    ? 'bg-ember text-slate-950'
+                                    : 'bg-ashen-700/70 text-ashen-100'
+                                }`}
+                              >
+                                {player.name}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {me.role === 'seer' && (
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Seer inspect</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {alivePlayers
+                              .filter((p) => p.id !== playerId)
+                              .map((player) => (
+                                <button
+                                  key={player.id}
+                                  onClick={() => setNightAction({ seerInspect: player.id })}
+                                  className={`rounded-full px-3 py-1 text-xs ${
+                                    nightActions?.seerInspect === player.id
+                                      ? 'bg-ember text-slate-950'
+                                      : 'bg-ashen-700/70 text-ashen-100'
+                                  }`}
+                                >
+                                  {player.name}
+                                </button>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {room.status === 'day' && (
+                    <div className="mt-4 rounded-xl border border-ashen-700 bg-ashen-800/70 p-4 text-sm text-ashen-200">
+                      {lastNight?.killedId ? (
+                        <p>
+                          Dawn breaks. {room.players[lastNight.killedId]?.name ?? 'Someone'} was taken in
+                          the night.
+                        </p>
+                      ) : (
+                        <p>No one was eliminated overnight.</p>
+                      )}
+                      {me?.role === 'seer' && lastNight?.seerResult && (
+                        <p className="mt-2 text-ashen-100">
+                          Your vision: {room.players[lastNight.seerResult.targetId]?.name} is a{' '}
+                          {lastNight.seerResult.role}.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {room.status === 'voting' && me?.isAlive && (
+                    <div className="mt-4 space-y-3">
+                      <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Vote to eliminate</p>
+                      <div className="flex flex-wrap gap-2">
+                        {alivePlayers
+                          .filter((p) => p.id !== playerId)
+                          .map((player) => (
+                            <button
+                              key={player.id}
+                              onClick={() => setVote(player.id)}
+                              className={`rounded-full px-3 py-1 text-xs ${
+                                myVote === player.id
+                                  ? 'bg-ember text-slate-950'
+                                  : 'bg-ashen-700/70 text-ashen-100'
+                              }`}
+                            >
+                              {player.name}
+                            </button>
+                          ))}
+                        <button
+                          onClick={() => setVote('skip')}
+                          className={`rounded-full px-3 py-1 text-xs ${
+                            myVote === 'skip' ? 'bg-ember text-slate-950' : 'bg-ashen-700/70 text-ashen-100'
+                          }`}
+                        >
+                          Skip
+                        </button>
+                      </div>
+                      <div className="text-sm text-ashen-300">
+                        {Object.values(room.votes ?? {}).length} vote(s) cast.
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    {isHost && (
+                      <button
+                        onClick={advancePhase}
+                        className="rounded-lg bg-ember px-4 py-2 text-sm font-semibold text-slate-950"
+                      >
+                        Advance Phase
+                      </button>
+                    )}
+                    {isHost && (
+                      <button
+                        onClick={resetLobby}
+                        className="rounded-lg border border-ashen-500 px-4 py-2 text-sm font-semibold text-ashen-100"
+                      >
+                        Reset to Lobby
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="mt-6 rounded-xl border border-ashen-700 bg-ashen-800/70 p-4">
+                    <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Players</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {Object.values(room.players).map((player) => (
+                        <span
+                          key={player.id}
+                          className={`rounded-full px-3 py-1 text-xs ${
+                            player.isAlive ? 'bg-ashen-700/80 text-ashen-100' : 'bg-ashen-800 text-ashen-500'
+                          }`}
+                        >
+                          {player.name}
+                          {player.id === playerId ? ' • You' : ''}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}

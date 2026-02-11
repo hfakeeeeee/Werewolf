@@ -12,6 +12,21 @@ export interface Player {
   joinedAt: number
 }
 
+export interface NightActions {
+  werewolfTarget?: string
+  doctorSave?: string
+  seerInspect?: string
+}
+
+export interface NightResult {
+  killedId?: string
+  savedId?: string
+  seerResult?: {
+    targetId: string
+    role: Role
+  }
+}
+
 export interface Room {
   id: string
   code: string
@@ -21,4 +36,9 @@ export interface Room {
   updatedAt: number
   players: Record<string, Player>
   dayCount: number
+  phaseEndsAt?: number
+  votes?: Record<string, string>
+  nightActions?: NightActions
+  lastNight?: NightResult
+  lastEliminated?: string[]
 }

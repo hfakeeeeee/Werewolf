@@ -280,7 +280,7 @@ export default function GamePage() {
           <div className="parallax-layer parallax-fast" />
         </div>
         <div className="hero-glow" />
-        <div className="relative z-10 mx-auto max-w-6xl px-6 py-12">
+        <div className="relative z-10 mx-auto px-6 py-12">
           {showRoleWheel && (
             <div className="fixed inset-0 z-50 grid place-items-center bg-ashen/90 px-6">
               <div className="w-full max-w-md rounded-2xl border border-ashen-700 bg-ashen-900/90 p-8 text-center shadow-inky">
@@ -607,6 +607,17 @@ export default function GamePage() {
                           <span className="rounded-full bg-ashen-700/70 px-2 py-1">
                             {player.isAlive ? 'Active' : 'Out'}
                           </span>
+                          {room.status === 'lobby' && (
+                            <span
+                              className={`rounded-full px-2 py-1 ${
+                                player.isReady
+                                  ? 'bg-emerald-500/20 text-emerald-200'
+                                  : 'bg-ashen-700/70 text-ashen-300'
+                              }`}
+                            >
+                              {player.isReady ? 'Ready' : 'Not Ready'}
+                            </span>
+                          )}
                           {player.isHost && (
                             <span className="rounded-full bg-ember/20 px-2 py-1 text-ember">Crown</span>
                           )}
@@ -662,12 +673,23 @@ export default function GamePage() {
               <div className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-6">
                 <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Roles in play</p>
                 <div className="mt-3 grid gap-2 text-sm text-ashen-100">
-                  {rolesPalette.map((role) => (
+                  {Object.entries(
+                    orderedPlayers.reduce<Record<string, number>>((acc, player) => {
+                      if (!player.role) return acc
+                      acc[player.role] = (acc[player.role] ?? 0) + 1
+                      return acc
+                    }, {})
+                  ).map(([role, count]) => (
                     <div key={role} className="flex items-center justify-between">
-                      <span className="capitalize">{role}</span>
+                      <span className="capitalize">
+                        {role} x{count}
+                      </span>
                       <span className="text-ashen-400">Active</span>
                     </div>
                   ))}
+                  {room.status === 'lobby' && (
+                    <p className="text-xs text-ashen-400">Roles appear after the game starts.</p>
+                  )}
                 </div>
               </div>
             </aside>

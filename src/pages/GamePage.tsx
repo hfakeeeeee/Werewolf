@@ -7,6 +7,7 @@ const roleHints: Record<Role, string> = {
   werewolf: 'Coordinate with other werewolves and strike together.',
   seer: 'Inspect a player each night to learn their role.',
   doctor: 'Choose someone to save from the werewolf attack.',
+  witch: 'Act after others. Heal the pending victim or poison someone once each.',
   hunter: 'If you fall, pick one player to take down with you.',
   villager: 'Discuss, deduce, and vote to eliminate werewolves.',
 }
@@ -15,6 +16,7 @@ const roleIcons: Record<Role, string> = {
   werewolf: '🐺',
   seer: '🔮',
   doctor: '🩺',
+  witch: '🧪',
   hunter: '🏹',
   villager: '🧑‍🌾',
 }
@@ -164,6 +166,7 @@ export default function GamePage() {
     resetLobby,
     setVote,
     setNightAction,
+    setWitchAction,
     sendChat,
     sendHunterShot,
     removePlayer,
@@ -211,10 +214,16 @@ export default function GamePage() {
   const nightActions = room?.nightActions
   const lastNight = room?.lastNight
   const isNight = room?.status === 'night'
+  const isNightMainStep = room?.nightStep !== 'witch'
+  const isWitchStep = room?.status === 'night' && room?.nightStep === 'witch'
+  const nightVictimName = room?.witchTurn?.pendingVictimId
+    ? room.players[room.witchTurn.pendingVictimId]?.name ?? 'Unknown'
+    : null
   const isWerewolf = me?.role === 'werewolf'
   const canChat = Boolean(me?.isAlive && (!isNight || isWerewolf))
   const canHunterShoot = room?.hunterPending === playerId
   const waitingForHunter = Boolean(room?.hunterPending && !canHunterShoot)
+  const canWitchAct = Boolean(isWitchStep && me?.isAlive && me.role === 'witch')
   const visibleMessages = room?.chat?.filter(
     (msg) => (msg.audience ?? 'all') === 'all' || isWerewolf
   )
@@ -281,6 +290,11 @@ export default function GamePage() {
               <span className="rounded-full border border-ashen-600 px-3 py-1 text-xs text-ashen-200">
                 {phaseLabels[room.status]}
               </span>
+              {isWitchStep && (
+                <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-200">
+                  Witch Turn
+                </span>
+              )}
               {countdown !== null && room.status !== 'lobby' && room.status !== 'results' && (
                 <span className="rounded-full border border-ashen-600 px-3 py-1 text-xs text-ashen-200">
                   {countdown}s left
@@ -346,6 +360,8 @@ export default function GamePage() {
                             ? nightActions?.doctorSave
                             : me?.role === 'seer'
                               ? nightActions?.seerInspect
+                              : me?.role === 'witch'
+                                ? nightActions?.witchPoisonTarget
                               : undefined
                         : undefined
                     const isSelected =
@@ -355,7 +371,11 @@ export default function GamePage() {
                       room.status === 'voting'
                         ? Boolean(me?.isAlive)
                         : room.status === 'night'
-                          ? Boolean(me?.isAlive && (me.role === 'werewolf' || me.role === 'doctor' || me.role === 'seer'))
+                          ? Boolean(
+                              isNightMainStep &&
+                                me?.isAlive &&
+                                (me.role === 'werewolf' || me.role === 'doctor' || me.role === 'seer')
+                            )
                           : Boolean(canHunterShoot)
                     return (
                       <div
@@ -368,6 +388,7 @@ export default function GamePage() {
                             return
                           }
                           if (room.status === 'night') {
+                            if (!isNightMainStep) return
                             if (me?.role === 'werewolf' && player.id !== playerId) {
                               setNightAction({ werewolfTarget: player.id })
                             }
@@ -511,18 +532,86 @@ export default function GamePage() {
                       <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
                         <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Night actions</p>
                         <p className="mt-2">
-                          {me.role === 'werewolf' && 'Click a player in the grid to choose the werewolf target.'}
-                          {me.role === 'doctor' && 'Click a player in the grid to choose who to save.'}
-                          {me.role === 'seer' && 'Click a player in the grid to inspect them.'}
+                          {me.role === 'werewolf' &&
+                            (isNightMainStep
+                              ? 'Click a player in the grid to choose the werewolf target.'
+                              : 'Waiting for the Witch to act.')}
+                          {me.role === 'doctor' &&
+                            (isNightMainStep
+                              ? 'Click a player in the grid to choose who to save.'
+                              : 'Waiting for the Witch to act.')}
+                          {me.role === 'seer' &&
+                            (isNightMainStep
+                              ? 'Click a player in the grid to inspect them.'
+                              : 'Waiting for the Witch to act.')}
+                          {me.role === 'witch' &&
+                            (isNightMainStep
+                              ? 'Wait for Werewolf, Doctor, and Seer to finish. You act next.'
+                              : 'Choose to heal the pending victim, poison a player, or pass.')}
                           {me.role === 'villager' && 'You have no night action.'}
                           {me.role === 'hunter' && 'You have no night action.'}
                         </p>
                       </div>
                     )}
 
+                    {isWitchStep && (
+                      <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
+                        <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Witch turn</p>
+                        <p className="mt-2">
+                          {nightVictimName
+                            ? `Pending victim: ${nightVictimName}.`
+                            : 'No pending victim tonight.'}
+                        </p>
+                        {canWitchAct && (
+                          <div className="mt-3 space-y-2">
+                            {!room.witchState?.healUsed && room.witchTurn?.pendingVictimId && (
+                              <button
+                                onClick={() => setWitchAction('heal')}
+                                className="rounded-lg bg-emerald-500/20 px-3 py-2 text-xs font-semibold text-emerald-200"
+                              >
+                                Use Heal Potion
+                              </button>
+                            )}
+                            {!room.witchState?.poisonUsed && (
+                              <div>
+                                <p className="text-xs text-ashen-400">Poison target:</p>
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {alivePlayers
+                                    .filter((p) => p.id !== playerId)
+                                    .map((player) => (
+                                      <button
+                                        key={player.id}
+                                        onClick={() => setWitchAction('poison', player.id)}
+                                        className="rounded-full bg-rose-500/20 px-3 py-1 text-xs text-rose-200"
+                                      >
+                                        {player.name}
+                                      </button>
+                                    ))}
+                                </div>
+                              </div>
+                            )}
+                            <button
+                              onClick={() => setWitchAction('pass')}
+                              className="rounded-lg border border-ashen-500 px-3 py-2 text-xs font-semibold text-ashen-100"
+                            >
+                              Pass
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {room.status === 'day' && (
                       <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
-                        {lastNight?.killedId ? (
+                        {(lastNight?.killedIds?.length ?? 0) > 0 ? (
+                          <p>
+                            Dawn breaks.{' '}
+                            {lastNight?.killedIds
+                              ?.map((id) => room.players[id]?.name ?? 'Someone')
+                              .join(', ')}{' '}
+                            {lastNight?.killedIds?.length === 1 ? 'was' : 'were'} taken in the night.
+                          </p>
+                        ) : lastNight?.killedId ? (
                           <p>
                             Dawn breaks. {room.players[lastNight.killedId]?.name ?? 'Someone'} was taken in the
                             night.

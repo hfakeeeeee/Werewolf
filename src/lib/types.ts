@@ -1,6 +1,6 @@
-﻿export type Phase = 'lobby' | 'night' | 'day' | 'voting' | 'results'
+export type Phase = 'lobby' | 'night' | 'day' | 'voting' | 'results'
 
-export type Role = 'werewolf' | 'seer' | 'doctor' | 'villager' | 'hunter'
+export type Role = 'werewolf' | 'seer' | 'doctor' | 'villager' | 'hunter' | 'witch'
 
 export interface Player {
   id: string
@@ -16,15 +16,31 @@ export interface NightActions {
   werewolfTarget?: string
   doctorSave?: string
   seerInspect?: string
+  witchHeal?: boolean
+  witchPoisonTarget?: string
 }
 
 export interface NightResult {
   killedId?: string
+  killedIds?: string[]
   savedId?: string
+  witchSavedId?: string
+  witchPoisonedId?: string
   seerResult?: {
     targetId: string
     role: Role
   }
+}
+
+export interface WitchState {
+  healUsed: boolean
+  poisonUsed: boolean
+}
+
+export interface WitchTurn {
+  pendingVictimId?: string
+  action?: 'heal' | 'poison' | 'pass'
+  poisonTargetId?: string
 }
 
 export interface ChatMessage {
@@ -46,8 +62,11 @@ export interface Room {
   players: Record<string, Player>
   dayCount: number
   phaseEndsAt?: number
+  nightStep?: 'main' | 'witch'
   votes?: Record<string, string>
   nightActions?: NightActions
+  witchState?: WitchState
+  witchTurn?: WitchTurn
   lastNight?: NightResult
   lastEliminated?: string[]
   hunterPending?: string

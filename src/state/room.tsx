@@ -9,9 +9,9 @@ import {
   updateDoc,
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
-import type { NightActions, Phase, Player, Role, Room } from '../lib/types'
+import type { NightActions, NightResult, Phase, Player, Role, Room, WitchState } from '../lib/types'
 
-const rolesPalette: Role[] = ['werewolf', 'seer', 'doctor', 'hunter', 'villager']
+const rolesPalette: Role[] = ['werewolf', 'seer', 'doctor', 'witch', 'hunter', 'villager']
 const minPlayers = 4
 
 const phaseLabels: Record<Phase, string> = {
@@ -69,6 +69,7 @@ function buildRoleDeck(count: number): Role[] {
   if (count >= 5) deck.push('seer')
   if (count >= 6) deck.push('doctor')
   if (count >= 7) deck.push('hunter')
+  if (count >= 8) deck.push('witch')
   while (deck.length < count) deck.push('villager')
   return shuffle(deck)
 }
@@ -105,29 +106,69 @@ function computeVoteResult(votes: Record<string, string> | undefined) {
   }
 }
 
-function resolveNight(
+function resolveMainNight(
   players: Player[],
   nightActions: NightActions | undefined
-): { killedId?: string; savedId?: string; seerResult?: { targetId: string; role: Role } } {
+): { pendingVictimId?: string; savedId?: string; seerResult?: { targetId: string; role: Role } } {
   if (!nightActions) return {}
   const killedId = nightActions.werewolfTarget
   const savedId = nightActions.doctorSave
-  const killedFinal = killedId && killedId !== savedId ? killedId : undefined
+  const pendingVictimId = killedId && killedId !== savedId ? killedId : undefined
   const seerTarget = nightActions.seerInspect
   const seerPlayer = players.find((p) => p.id === seerTarget)
-  const result: {
-    killedId?: string
-    savedId?: string
-    seerResult?: { targetId: string; role: Role }
-  } = {}
+  const result: { pendingVictimId?: string; savedId?: string; seerResult?: { targetId: string; role: Role } } = {}
 
-  if (killedFinal) result.killedId = killedFinal
+  if (pendingVictimId) result.pendingVictimId = pendingVictimId
   if (savedId) result.savedId = savedId
   if (seerPlayer) {
     result.seerResult = {
       targetId: seerPlayer.id,
       role: seerPlayer.role ?? 'villager',
     }
+  }
+
+  return result
+}
+
+function resolveFinalNight(
+  players: Player[],
+  nightActions: NightActions | undefined,
+  witchState: WitchState | undefined,
+  pendingVictimId: string | undefined
+): NightResult {
+  const mainResult = resolveMainNight(players, nightActions)
+  const killSet = new Set<string>()
+  const result: NightResult = {}
+
+  const action = nightActions?.witchHeal
+    ? 'heal'
+    : nightActions?.witchPoisonTarget
+      ? 'poison'
+      : 'pass'
+  const poisonTargetId = nightActions?.witchPoisonTarget
+
+  const effectivePendingVictim = mainResult.pendingVictimId ?? pendingVictimId
+  const canHeal = Boolean(!witchState?.healUsed && action === 'heal' && effectivePendingVictim)
+  const canPoison = Boolean(!witchState?.poisonUsed && action === 'poison' && poisonTargetId)
+
+  if (mainResult.savedId) result.savedId = mainResult.savedId
+  if (mainResult.seerResult) result.seerResult = mainResult.seerResult
+
+  if (effectivePendingVictim && !canHeal) {
+    killSet.add(effectivePendingVictim)
+  }
+  if (canHeal && effectivePendingVictim) {
+    result.witchSavedId = effectivePendingVictim
+  }
+  if (canPoison && poisonTargetId) {
+    killSet.add(poisonTargetId)
+    result.witchPoisonedId = poisonTargetId
+  }
+
+  const killedIds = Array.from(killSet)
+  if (killedIds.length > 0) {
+    result.killedIds = killedIds
+    result.killedId = killedIds[0]
   }
 
   return result
@@ -174,6 +215,7 @@ export interface RoomState {
   resetLobby: () => Promise<void>
   setVote: (targetId: string) => Promise<void>
   setNightAction: (update: Partial<NightActions>) => Promise<void>
+  setWitchAction: (action: 'heal' | 'poison' | 'pass', targetId?: string) => Promise<void>
   sendChat: (message: string) => Promise<void>
   sendHunterShot: (targetId: string) => Promise<void>
   removePlayer: (targetId: string) => Promise<void>
@@ -398,11 +440,17 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
     const deck = buildRoleDeck(players.length)
     const updates: Record<string, unknown> = {
       status: 'night',
+      nightStep: 'main',
       dayCount: 1,
       updatedAt: Date.now(),
       phaseEndsAt: Date.now() + phaseDurations.night * 1000,
       votes: deleteField(),
       nightActions: deleteField(),
+      witchState: {
+        healUsed: false,
+        poisonUsed: false,
+      },
+      witchTurn: deleteField(),
       lastNight: deleteField(),
       lastEliminated: deleteField(),
       hunterPending: deleteField(),
@@ -431,14 +479,60 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
 
   const setNightAction = async (update: Partial<NightActions>) => {
     if (!room || !me) return
+    if (room.status !== 'night') return
+    if (room.nightStep === 'witch') return
+    if (!me.isAlive) return
+
+    const allowedKeysByRole: Record<Role, (keyof NightActions)[]> = {
+      werewolf: ['werewolfTarget'],
+      doctor: ['doctorSave'],
+      seer: ['seerInspect'],
+      witch: [],
+      hunter: [],
+      villager: [],
+    }
+
+    const allowed = allowedKeysByRole[me.role ?? 'villager']
+    const entries = Object.entries(update).filter(([key]) =>
+      allowed.includes(key as keyof NightActions)
+    )
+    if (entries.length === 0) return
+
     const ref = doc(db, 'rooms', room.code)
     const payload: Record<string, unknown> = {
       updatedAt: Date.now(),
     }
-    Object.entries(update).forEach(([key, value]) => {
+    entries.forEach(([key, value]) => {
       payload[`nightActions.${key}`] = value
     })
     await updateDoc(ref, payload)
+  }
+
+  const setWitchAction = async (action: 'heal' | 'poison' | 'pass', targetId?: string) => {
+    if (!room || !me) return
+    if (room.status !== 'night' || room.nightStep !== 'witch') return
+    if (!me.isAlive || me.role !== 'witch') return
+
+    const witchState = room.witchState ?? { healUsed: false, poisonUsed: false }
+    const pendingVictimId = room.witchTurn?.pendingVictimId
+
+    const payload: Record<string, unknown> = {
+      updatedAt: Date.now(),
+      'nightActions.witchHeal': deleteField(),
+      'nightActions.witchPoisonTarget': deleteField(),
+    }
+
+    if (action === 'heal') {
+      if (witchState.healUsed || !pendingVictimId) return
+      payload['nightActions.witchHeal'] = true
+    } else if (action === 'poison') {
+      if (witchState.poisonUsed || !targetId) return
+      const target = room.players[targetId]
+      if (!target?.isAlive) return
+      payload['nightActions.witchPoisonTarget'] = targetId
+    }
+
+    await updateDoc(doc(db, 'rooms', room.code), payload)
   }
 
   const advancePhase = async () => {
@@ -458,13 +552,49 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
     const eliminated: string[] = []
 
     if (room.status === 'night') {
-      const result = resolveNight(players, room.nightActions)
-      if (result.killedId) {
-        updates[`players.${result.killedId}.isAlive`] = false
-        eliminated.push(result.killedId)
+      const mainResult = resolveMainNight(players, room.nightActions)
+      const witch = players.find((player) => player.role === 'witch' && player.isAlive)
+      const witchState = room.witchState ?? { healUsed: false, poisonUsed: false }
+      const canWitchAct = witch && (!witchState.healUsed || !witchState.poisonUsed)
+      const isWitchStep = room.nightStep === 'witch'
+
+      if (!isWitchStep && canWitchAct) {
+        updates.status = 'night'
+        updates.nightStep = 'witch'
+        updates.witchTurn = {
+          pendingVictimId: mainResult.pendingVictimId,
+          action: 'pass',
+        }
+        updates.phaseEndsAt = Date.now() + phaseDurations.night * 1000
+        await updateDoc(doc(db, 'rooms', room.code), updates)
+        return
       }
+
+      const pendingVictimId = room.witchTurn?.pendingVictimId ?? mainResult.pendingVictimId
+      const result = resolveFinalNight(players, room.nightActions, witchState, pendingVictimId)
+      const killedIds = result.killedIds ?? (result.killedId ? [result.killedId] : [])
+      killedIds.forEach((killedId) => {
+        updates[`players.${killedId}.isAlive`] = false
+        eliminated.push(killedId)
+      })
+
+      const consumedHeal = Boolean(
+        room.nightActions?.witchHeal &&
+          pendingVictimId &&
+          !(room.witchState?.healUsed ?? false)
+      )
+      const consumedPoison = Boolean(
+        room.nightActions?.witchPoisonTarget && !(room.witchState?.poisonUsed ?? false)
+      )
+      updates.witchState = {
+        healUsed: Boolean((room.witchState?.healUsed ?? false) || consumedHeal),
+        poisonUsed: Boolean((room.witchState?.poisonUsed ?? false) || consumedPoison),
+      }
+
       updates.lastNight = result
       updates.nightActions = deleteField()
+      updates.witchTurn = deleteField()
+      updates.nightStep = 'main'
     }
 
     if (room.status === 'voting') {
@@ -497,8 +627,11 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
       updates.phaseEndsAt = deleteField()
       updates.winner = winner.winner
       updates.winReason = winner.reason
-    } else if (next === 'night') {
+    } else if (updates.status === 'night') {
       updates.dayCount = (room.dayCount || 1) + 1
+      updates.nightStep = 'main'
+      updates.witchTurn = deleteField()
+      updates.nightActions = deleteField()
     }
 
     await updateDoc(doc(db, 'rooms', room.code), updates)
@@ -510,8 +643,11 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
       status: 'lobby',
       updatedAt: Date.now(),
       phaseEndsAt: deleteField(),
+      nightStep: deleteField(),
       votes: deleteField(),
       nightActions: deleteField(),
+      witchState: deleteField(),
+      witchTurn: deleteField(),
       lastNight: deleteField(),
       lastEliminated: deleteField(),
       hunterPending: deleteField(),
@@ -674,6 +810,7 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
     resetLobby,
     setVote,
     setNightAction,
+    setWitchAction,
     sendChat,
     sendHunterShot,
     removePlayer,

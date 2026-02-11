@@ -64,7 +64,8 @@ function shuffle<T>(items: T[]) {
 }
 
 function buildRoleDeck(count: number): Role[] {
-  const deck: Role[] = ['werewolf']
+  const werewolves = Math.max(1, Math.floor(count / 4))
+  const deck: Role[] = Array.from({ length: werewolves }, () => 'werewolf')
   if (count >= 5) deck.push('seer')
   if (count >= 6) deck.push('doctor')
   if (count >= 7) deck.push('hunter')
@@ -559,6 +560,14 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
 
   const sendChat = async (message: string) => {
     if (!room || !me) return
+    if (!me.isAlive) {
+      setError('Eliminated players cannot chat.')
+      return
+    }
+    if (room.status === 'night' && me.role !== 'werewolf') {
+      setError('Only werewolves can chat at night.')
+      return
+    }
     const trimmed = message.trim()
     if (!trimmed) return
     await updateDoc(doc(db, 'rooms', room.code), {
@@ -567,6 +576,7 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
         senderId: playerId,
         senderName: me.name,
         message: trimmed,
+        audience: room.status === 'night' ? 'werewolves' : 'all',
         createdAt: Date.now(),
       }),
       updatedAt: Date.now(),

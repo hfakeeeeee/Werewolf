@@ -19,6 +19,7 @@ export default function GamePage() {
     playerId,
     setActiveCode,
     room,
+    error,
     me,
     isHost,
     countdown,
@@ -48,6 +49,12 @@ export default function GamePage() {
   const myVote = room?.votes?.[playerId]
   const nightActions = room?.nightActions
   const lastNight = room?.lastNight
+  const isNight = room?.status === 'night'
+  const isWerewolf = me?.role === 'werewolf'
+  const canChat = Boolean(me?.isAlive && (!isNight || isWerewolf))
+  const visibleMessages = room?.chat?.filter(
+    (msg) => (msg.audience ?? 'all') === 'all' || isWerewolf
+  )
 
   const handleSend = async () => {
     await sendChat(message)
@@ -358,8 +365,8 @@ export default function GamePage() {
             <aside className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-6 shadow-inky">
               <h3 className="font-display text-xl">Chat</h3>
               <div className="mt-4 flex h-[320px] flex-col gap-3 overflow-y-auto rounded-xl border border-ashen-700 bg-ashen-800/70 p-4">
-                {room.chat?.length ? (
-                  room.chat.map((msg) => (
+                {visibleMessages?.length ? (
+                  visibleMessages.map((msg) => (
                     <div key={msg.id} className="text-sm text-ashen-200">
                       <span className="text-ashen-400">{msg.senderName}:</span> {msg.message}
                     </div>
@@ -368,16 +375,22 @@ export default function GamePage() {
                   <p className="text-sm text-ashen-400">No messages yet.</p>
                 )}
               </div>
+              {isNight && !isWerewolf && (
+                <p className="mt-2 text-xs text-ashen-400">Night chat is for werewolves only.</p>
+              )}
+              {error && <p className="mt-2 text-xs text-ember">{error}</p>}
               <div className="mt-4 flex gap-2">
                 <input
                   value={message}
                   onChange={(event) => setMessage(event.target.value)}
                   placeholder="Say something..."
-                  className="flex-1 rounded-lg border border-ashen-600 bg-ashen-800/80 px-3 py-2 text-sm text-ashen-100 outline-none focus:border-ember"
+                  disabled={!canChat}
+                  className="flex-1 rounded-lg border border-ashen-600 bg-ashen-800/80 px-3 py-2 text-sm text-ashen-100 outline-none focus:border-ember disabled:opacity-50"
                 />
                 <button
                   onClick={handleSend}
-                  className="rounded-lg bg-ember px-4 py-2 text-sm font-semibold text-slate-950"
+                  disabled={!canChat}
+                  className="rounded-lg bg-ember px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-60"
                 >
                   Send
                 </button>

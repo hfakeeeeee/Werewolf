@@ -32,6 +32,7 @@ export interface ChatMessage {
   senderId: string
   senderName: string
   message: string
+  audience?: 'all' | 'werewolves'
   createdAt: number
 }
 

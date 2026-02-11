@@ -11,38 +11,12 @@ const roleHints: Record<Role, string> = {
   villager: 'Discuss, deduce, and vote to eliminate werewolves.',
 }
 
-const avatarPalette = [
-  'from-amber-200 to-rose-300',
-  'from-emerald-200 to-teal-300',
-  'from-sky-200 to-indigo-300',
-  'from-fuchsia-200 to-purple-300',
-  'from-orange-200 to-yellow-300',
-  'from-lime-200 to-emerald-300',
-]
-
 const roleIcons: Record<Role, string> = {
   werewolf: '🐺',
   seer: '🔮',
   doctor: '🩺',
   hunter: '🏹',
   villager: '🧑‍🌾',
-}
-
-function initials(name: string) {
-  return name
-    .split(' ')
-    .filter(Boolean)
-    .map((part) => part[0]?.toUpperCase())
-    .slice(0, 2)
-    .join('')
-}
-
-function pickGradient(id: string) {
-  let hash = 0
-  for (let i = 0; i < id.length; i += 1) {
-    hash = (hash + id.charCodeAt(i) * (i + 3)) % avatarPalette.length
-  }
-  return avatarPalette[hash]
 }
 
 const skinTones = ['#F7D7C4', '#E9C4A3', '#D8A57E', '#B98364', '#8D5E3C', '#7C4A2B']
@@ -182,7 +156,6 @@ export default function GamePage() {
     isHost,
     countdown,
     phaseLabels,
-    rolesPalette,
     toggleReady,
     rejoinRoom,
     leaveRoom,
@@ -363,7 +336,6 @@ export default function GamePage() {
                         </div>
                       )
                     }
-                    const gradient = pickGradient(player.id)
                     const isMe = player.id === playerId
                     const showRole = isMe && player.role
                     const nightSelection =

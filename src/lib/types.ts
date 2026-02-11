@@ -27,6 +27,14 @@ export interface NightResult {
   }
 }
 
+export interface ChatMessage {
+  id: string
+  senderId: string
+  senderName: string
+  message: string
+  createdAt: number
+}
+
 export interface Room {
   id: string
   code: string
@@ -41,4 +49,7 @@ export interface Room {
   nightActions?: NightActions
   lastNight?: NightResult
   lastEliminated?: string[]
+  winner?: 'villagers' | 'werewolves'
+  winReason?: string
+  chat?: ChatMessage[]
 }

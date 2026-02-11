@@ -50,6 +50,7 @@ export interface Room {
   nightActions?: NightActions
   lastNight?: NightResult
   lastEliminated?: string[]
+  hunterPending?: string
   winner?: 'villagers' | 'werewolves'
   winReason?: string
   chat?: ChatMessage[]

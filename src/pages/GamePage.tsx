@@ -34,6 +34,7 @@ export default function GamePage() {
     setVote,
     setNightAction,
     sendChat,
+    sendHunterShot,
   } = useRoom()
 
   useEffect(() => {
@@ -52,6 +53,8 @@ export default function GamePage() {
   const isNight = room?.status === 'night'
   const isWerewolf = me?.role === 'werewolf'
   const canChat = Boolean(me?.isAlive && (!isNight || isWerewolf))
+  const canHunterShoot = room?.hunterPending === playerId
+  const waitingForHunter = Boolean(room?.hunterPending && !canHunterShoot)
   const visibleMessages = room?.chat?.filter(
     (msg) => (msg.audience ?? 'all') === 'all' || isWerewolf
   )
@@ -314,12 +317,42 @@ export default function GamePage() {
                     </div>
                   )}
 
+                  {canHunterShoot && (
+                    <div className="mt-4 space-y-3">
+                      <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">
+                        Hunter last shot
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {alivePlayers
+                          .filter((p) => p.id !== playerId)
+                          .map((player) => (
+                            <button
+                              key={player.id}
+                              onClick={() => sendHunterShot(player.id)}
+                              className="rounded-full bg-ember px-3 py-1 text-xs text-slate-950"
+                            >
+                              {player.name}
+                            </button>
+                          ))}
+                      </div>
+                      <p className="text-xs text-ashen-400">
+                        You were eliminated. Choose one player to take with you.
+                      </p>
+                    </div>
+                  )}
+
                   {room.status === 'results' && (
                     <div className="mt-4 rounded-xl border border-ashen-700 bg-ashen-800/70 p-4 text-sm text-ashen-200">
                       <p className="font-display text-xl text-ashen-100">
                         {room.winner === 'villagers' ? 'Villagers win!' : 'Werewolves win!'}
                       </p>
                       <p className="mt-2">{room.winReason}</p>
+                    </div>
+                  )}
+
+                  {waitingForHunter && (
+                    <div className="mt-4 rounded-xl border border-ember/40 bg-ember/10 p-4 text-sm text-ashen-100">
+                      Waiting for the Hunter's final shot...
                     </div>
                   )}
 

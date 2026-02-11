@@ -175,6 +175,7 @@ export interface RoomState {
   setVote: (targetId: string) => Promise<void>
   setNightAction: (update: Partial<NightActions>) => Promise<void>
   sendChat: (message: string) => Promise<void>
+  sendHunterShot: (targetId: string) => Promise<void>
 }
 
 const RoomContext = createContext<RoomState | null>(null)
@@ -402,6 +403,7 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
       nightActions: deleteField(),
       lastNight: deleteField(),
       lastEliminated: deleteField(),
+      hunterPending: deleteField(),
       winner: deleteField(),
       winReason: deleteField(),
       chat: deleteField(),
@@ -474,12 +476,21 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    const hunterEliminated = eliminated.find((id) => {
+      const player = players.find((p) => p.id === id)
+      return player?.role === 'hunter'
+    })
+
+    if (hunterEliminated) {
+      updates.hunterPending = hunterEliminated
+    }
+
     const aliveAfter = players.map((player) =>
       eliminated.includes(player.id) ? { ...player, isAlive: false } : player
     )
     const winner = computeWinner(aliveAfter)
 
-    if (winner) {
+    if (winner && !hunterEliminated) {
       updates.status = 'results'
       updates.phaseEndsAt = deleteField()
       updates.winner = winner.winner
@@ -501,6 +512,7 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
       nightActions: deleteField(),
       lastNight: deleteField(),
       lastEliminated: deleteField(),
+      hunterPending: deleteField(),
       winner: deleteField(),
       winReason: deleteField(),
     }
@@ -583,6 +595,37 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
     })
   }
 
+  const sendHunterShot = async (targetId: string) => {
+    if (!room || !me) return
+    if (!room.hunterPending || room.hunterPending !== playerId) return
+    if (!targetId) return
+    const target = room.players[targetId]
+    if (!target || !target.isAlive) return
+
+    const players = Object.values(room.players)
+    const eliminated = [targetId]
+    const aliveAfter = players.map((player) =>
+      eliminated.includes(player.id) ? { ...player, isAlive: false } : player
+    )
+    const winner = computeWinner(aliveAfter)
+
+    const updates: Record<string, unknown> = {
+      [`players.${targetId}.isAlive`]: false,
+      hunterPending: deleteField(),
+      lastEliminated: [...(room.lastEliminated ?? []), targetId],
+      updatedAt: Date.now(),
+    }
+
+    if (winner) {
+      updates.status = 'results'
+      updates.phaseEndsAt = deleteField()
+      updates.winner = winner.winner
+      updates.winReason = winner.reason
+    }
+
+    await updateDoc(doc(db, 'rooms', room.code), updates)
+  }
+
   const countdown = room?.phaseEndsAt ? Math.max(0, Math.ceil((room.phaseEndsAt - now) / 1000)) : null
 
   const value: RoomState = {
@@ -614,6 +657,7 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
     setVote,
     setNightAction,
     sendChat,
+    sendHunterShot,
   }
 
   return <RoomContext.Provider value={value}>{children}</RoomContext.Provider>

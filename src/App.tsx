@@ -93,9 +93,13 @@ function computeVoteResult(votes: Record<string, string> | undefined) {
   const entries = Object.entries(tally).filter(([id]) => id !== 'skip')
   if (entries.length === 0) return null
   entries.sort((a, b) => b[1] - a[1])
+  if (entries.length > 1 && entries[0][1] === entries[1][1]) {
+    return { targetId: null, votes: entries[0][1], isTie: true }
+  }
   return {
     targetId: entries[0][0],
     votes: entries[0][1],
+    isTie: false,
   }
 }
 
@@ -408,6 +412,8 @@ export default function App() {
       if (voteResult?.targetId) {
         updates[`players.${voteResult.targetId}.isAlive`] = false
         updates.lastEliminated = [voteResult.targetId]
+      } else {
+        updates.lastEliminated = []
       }
     }
 

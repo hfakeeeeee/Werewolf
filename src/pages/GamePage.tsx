@@ -171,6 +171,8 @@ export default function GamePage() {
   const navigate = useNavigate()
   const { code } = useParams()
   const [message, setMessage] = useState('')
+  const [showRoleWheel, setShowRoleWheel] = useState(false)
+  const [roleRevealed, setRoleRevealed] = useState(false)
   const {
     playerId,
     setActiveCode,
@@ -197,6 +199,26 @@ export default function GamePage() {
     if (!code) return
     setActiveCode(code)
   }, [code, setActiveCode])
+
+  useEffect(() => {
+    if (!room || room.status === 'lobby') {
+      setShowRoleWheel(false)
+      setRoleRevealed(false)
+      return
+    }
+    if (!me?.role) return
+    if (roleRevealed || showRoleWheel) return
+    setShowRoleWheel(true)
+  }, [me?.role, roleRevealed, room, showRoleWheel])
+
+  useEffect(() => {
+    if (!showRoleWheel) return
+    const timer = setTimeout(() => {
+      setShowRoleWheel(false)
+      setRoleRevealed(true)
+    }, 2600)
+    return () => clearTimeout(timer)
+  }, [showRoleWheel])
 
   const orderedPlayers = useMemo(() => {
     if (!room) return []
@@ -259,6 +281,18 @@ export default function GamePage() {
         </div>
         <div className="hero-glow" />
         <div className="relative z-10 mx-auto max-w-6xl px-6 py-12">
+          {showRoleWheel && (
+            <div className="fixed inset-0 z-50 grid place-items-center bg-ashen/90 px-6">
+              <div className="w-full max-w-md rounded-2xl border border-ashen-700 bg-ashen-900/90 p-8 text-center shadow-inky">
+                <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Role Draw</p>
+                <h2 className="mt-3 font-display text-2xl">Spinning the wheel...</h2>
+                <div className="mt-6 grid place-items-center">
+                  <div className="role-wheel" />
+                </div>
+                <p className="mt-4 text-sm text-ashen-300">Your role is being revealed.</p>
+              </div>
+            </div>
+          )}
           <header className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="grid h-10 w-10 place-items-center rounded-xl bg-ember text-lg font-semibold text-slate-950">
@@ -306,15 +340,20 @@ export default function GamePage() {
                     </button>
                   )}
                 </div>
-                <div className="mt-4 grid gap-2 text-sm text-ashen-200">
-                  <p>
-                    You are <span className="text-ashen-100">{me?.role ?? '...'}</span>
-                  </p>
-                  <p className="text-ashen-300">{me?.role ? roleHints[me.role] : ''}</p>
-                  <p>
-                    Status: <span className="text-ashen-100">{me?.isAlive ? 'Alive' : 'Eliminated'}</span>
-                  </p>
-                </div>
+                  <div className="mt-4 grid gap-2 text-sm text-ashen-200">
+                    <p>
+                      You are{' '}
+                      <span className="text-ashen-100">
+                        {roleRevealed ? me?.role ?? '...' : '???'}
+                      </span>
+                    </p>
+                    <p className="text-ashen-300">
+                      {roleRevealed && me?.role ? roleHints[me.role] : 'Role hidden until the wheel stops.'}
+                    </p>
+                    <p>
+                      Status: <span className="text-ashen-100">{me?.isAlive ? 'Alive' : 'Eliminated'}</span>
+                    </p>
+                  </div>
                 {room.status === 'lobby' && (
                   <div className="mt-4 flex flex-wrap gap-3">
                     {me ? (

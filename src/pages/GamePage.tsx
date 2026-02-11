@@ -1,6 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useRoom } from '../state/room'
+import { customRoleOrder, defaultCustomRoles, useRoom } from '../state/room'
 import type { Role } from '../lib/types'
 
 const roleHints: Record<Role, string> = {
@@ -158,6 +158,8 @@ export default function GamePage() {
     isHost,
     countdown,
     phaseLabels,
+    setGameMode,
+    setCustomRoleCount,
     toggleReady,
     rejoinRoom,
     leaveRoom,
@@ -209,6 +211,19 @@ export default function GamePage() {
     () => orderedPlayers.filter((p) => p.isAlive),
     [orderedPlayers]
   )
+  const gameMode = room?.gameMode ?? 'classic'
+  const customRoles = useMemo(() => {
+    if (!room) return { ...defaultCustomRoles }
+    return customRoleOrder.reduce((acc, role) => {
+      const value = room.customRoles?.[role]
+      acc[role] = typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0
+      return acc
+    }, {} as Record<Role, number>)
+  }, [room])
+  const customTotal = customRoleOrder.reduce((sum, role) => sum + (customRoles[role] ?? 0), 0)
+  const customHasWerewolf = (customRoles.werewolf ?? 0) > 0
+  const customMatchesPlayers = customTotal === orderedPlayers.length
+  const canStartWithCurrentSetup = gameMode === 'classic' || (customHasWerewolf && customMatchesPlayers)
 
   const myVote = room?.votes?.[playerId]
   const nightActions = room?.nightActions
@@ -492,37 +507,104 @@ export default function GamePage() {
                       </p>
                     </div>
                     {room.status === 'lobby' && (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {me ? (
-                          <button
-                            onClick={toggleReady}
-                            className="rounded-lg border border-ashen-500 px-4 py-2 text-sm font-semibold text-ashen-100"
-                          >
-                            {me.isReady ? 'Unready' : 'Ready'}
-                          </button>
-                        ) : (
-                          <button
-                            onClick={rejoinRoom}
-                            className="rounded-lg border border-ashen-500 px-4 py-2 text-sm font-semibold text-ashen-100"
-                          >
-                            Rejoin Room
-                          </button>
-                        )}
+                      <div className="mt-3 space-y-3">
+                        <div className="flex flex-wrap gap-2">
+                          {me ? (
+                            <button
+                              onClick={toggleReady}
+                              className="rounded-lg border border-ashen-500 px-4 py-2 text-sm font-semibold text-ashen-100"
+                            >
+                              {me.isReady ? 'Unready' : 'Ready'}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={rejoinRoom}
+                              className="rounded-lg border border-ashen-500 px-4 py-2 text-sm font-semibold text-ashen-100"
+                            >
+                              Rejoin Room
+                            </button>
+                          )}
+                          {isHost && (
+                            <button
+                              onClick={startGame}
+                              disabled={!canStartWithCurrentSetup}
+                              className="rounded-lg bg-ember px-4 py-2 text-sm font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              Start Game
+                            </button>
+                          )}
+                          {isHost && (
+                            <button
+                              onClick={resetLobby}
+                              className="rounded-lg border border-ashen-500 px-4 py-2 text-sm font-semibold text-ashen-100"
+                            >
+                              Reset to Lobby
+                            </button>
+                          )}
+                        </div>
+
                         {isHost && (
-                          <button
-                            onClick={startGame}
-                            className="rounded-lg bg-ember px-4 py-2 text-sm font-semibold text-slate-950"
-                          >
-                            Start Game
-                          </button>
-                        )}
-                        {isHost && (
-                          <button
-                            onClick={resetLobby}
-                            className="rounded-lg border border-ashen-500 px-4 py-2 text-sm font-semibold text-ashen-100"
-                          >
-                            Reset to Lobby
-                          </button>
+                          <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3">
+                            <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Game setup</p>
+                            <div className="mt-2 flex gap-2">
+                              <button
+                                onClick={() => setGameMode('classic')}
+                                className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                                  gameMode === 'classic'
+                                    ? 'bg-ember text-slate-950'
+                                    : 'border border-ashen-500 text-ashen-100'
+                                }`}
+                              >
+                                Classic
+                              </button>
+                              <button
+                                onClick={() => setGameMode('custom')}
+                                className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                                  gameMode === 'custom'
+                                    ? 'bg-ember text-slate-950'
+                                    : 'border border-ashen-500 text-ashen-100'
+                                }`}
+                              >
+                                Custom
+                              </button>
+                            </div>
+
+                            {gameMode === 'custom' && (
+                              <div className="mt-3 space-y-2">
+                                {customRoleOrder.map((role) => (
+                                  <div key={role} className="flex items-center justify-between gap-2">
+                                    <span className="capitalize text-xs text-ashen-200">{role}</span>
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        onClick={() => setCustomRoleCount(role, (customRoles[role] ?? 0) - 1)}
+                                        className="rounded-md border border-ashen-500 px-2 py-1 text-xs text-ashen-100"
+                                      >
+                                        -
+                                      </button>
+                                      <span className="w-5 text-center text-xs text-ashen-100">
+                                        {customRoles[role] ?? 0}
+                                      </span>
+                                      <button
+                                        onClick={() => setCustomRoleCount(role, (customRoles[role] ?? 0) + 1)}
+                                        className="rounded-md border border-ashen-500 px-2 py-1 text-xs text-ashen-100"
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                                <p className="text-xs text-ashen-300">
+                                  Total roles: {customTotal} / Players: {orderedPlayers.length}
+                                </p>
+                                {!customHasWerewolf && (
+                                  <p className="text-xs text-ember">Custom setup must include at least 1 werewolf.</p>
+                                )}
+                                {!customMatchesPlayers && (
+                                  <p className="text-xs text-ember">Role total must match player count.</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
                     )}

@@ -1,6 +1,8 @@
 export type Phase = 'lobby' | 'night' | 'day' | 'voting' | 'results'
+export type GameMode = 'classic' | 'custom'
 
 export type Role = 'werewolf' | 'seer' | 'bodyguard' | 'villager' | 'hunter' | 'witch'
+export type RoleCounts = Record<Role, number>
 
 export interface Player {
   id: string
@@ -61,6 +63,8 @@ export interface Room {
   updatedAt: number
   players: Record<string, Player>
   dayCount: number
+  gameMode?: GameMode
+  customRoles?: Partial<RoleCounts>
   phaseEndsAt?: number
   nightStep?: 'main' | 'witch'
   bodyguardLastProtectedId?: string

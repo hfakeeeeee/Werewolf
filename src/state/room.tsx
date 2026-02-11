@@ -9,10 +9,29 @@ import {
   updateDoc,
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
-import type { NightActions, NightResult, Phase, Player, Role, Room, WitchState } from '../lib/types'
+import type {
+  GameMode,
+  NightActions,
+  NightResult,
+  Phase,
+  Player,
+  Role,
+  RoleCounts,
+  Room,
+  WitchState,
+} from '../lib/types'
 
 const rolesPalette: Role[] = ['werewolf', 'seer', 'bodyguard', 'witch', 'hunter', 'villager']
 const minPlayers = 4
+const customRoleOrder: Role[] = ['werewolf', 'seer', 'bodyguard', 'witch', 'hunter', 'villager']
+const defaultCustomRoles: RoleCounts = {
+  werewolf: 1,
+  seer: 1,
+  bodyguard: 1,
+  witch: 0,
+  hunter: 0,
+  villager: 1,
+}
 
 const phaseLabels: Record<Phase, string> = {
   lobby: 'Lobby',
@@ -72,6 +91,35 @@ function buildRoleDeck(count: number): Role[] {
   if (count >= 8) deck.push('witch')
   while (deck.length < count) deck.push('villager')
   return shuffle(deck)
+}
+
+function getCustomRoleCounts(room: Room | null): RoleCounts {
+  const raw = room?.customRoles ?? {}
+  return customRoleOrder.reduce((acc, role) => {
+    const value = raw[role]
+    const safe = typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0
+    acc[role] = safe
+    return acc
+  }, {} as RoleCounts)
+}
+
+function buildCustomRoleDeck(playersCount: number, counts: RoleCounts): { deck: Role[] | null; error?: string } {
+  const total = customRoleOrder.reduce((sum, role) => sum + (counts[role] ?? 0), 0)
+  if (total !== playersCount) {
+    return { deck: null, error: `Custom roles must total ${playersCount}. Current total is ${total}.` }
+  }
+  if ((counts.werewolf ?? 0) < 1) {
+    return { deck: null, error: 'Custom roles must include at least one werewolf.' }
+  }
+
+  const deck: Role[] = []
+  customRoleOrder.forEach((role) => {
+    const count = counts[role] ?? 0
+    for (let i = 0; i < count; i += 1) {
+      deck.push(role)
+    }
+  })
+  return { deck: shuffle(deck) }
 }
 
 function nextPhase(current: Phase): Phase {
@@ -209,6 +257,8 @@ export interface RoomState {
   phaseLabels: Record<Phase, string>
   minPlayers: number
   countdown: number | null
+  setGameMode: (mode: GameMode) => Promise<void>
+  setCustomRoleCount: (role: Role, count: number) => Promise<void>
   createRoom: () => Promise<string | null>
   joinRoom: () => Promise<string | null>
   leaveRoom: () => Promise<void>
@@ -311,6 +361,25 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
   const me = room?.players?.[playerId]
   const isHost = me?.isHost ?? false
 
+  const setGameMode = async (mode: GameMode) => {
+    if (!room || !isHost) return
+    if (room.status !== 'lobby') return
+    await updateDoc(doc(db, 'rooms', room.code), {
+      gameMode: mode,
+      updatedAt: Date.now(),
+    })
+  }
+
+  const setCustomRoleCount = async (role: Role, count: number) => {
+    if (!room || !isHost) return
+    if (room.status !== 'lobby') return
+    const clamped = Math.max(0, Math.min(16, Math.floor(count)))
+    await updateDoc(doc(db, 'rooms', room.code), {
+      [`customRoles.${role}`]: clamped,
+      updatedAt: Date.now(),
+    })
+  }
+
   const createRoom = async () => {
     const name = playerName.trim()
     if (!name) {
@@ -353,6 +422,8 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
       code,
       status: 'lobby',
       hostId: playerId,
+      gameMode: 'classic',
+      customRoles: { ...defaultCustomRoles },
       createdAt: nowStamp,
       updatedAt: nowStamp,
       players: { [playerId]: player },
@@ -441,7 +512,20 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
       return
     }
 
-    const deck = buildRoleDeck(players.length)
+    const mode: GameMode = room.gameMode ?? 'classic'
+    let deck: Role[] = []
+    if (mode === 'custom') {
+      const counts = getCustomRoleCounts(room)
+      const custom = buildCustomRoleDeck(players.length, counts)
+      if (!custom.deck) {
+        setError(custom.error ?? 'Invalid custom role setup.')
+        return
+      }
+      deck = custom.deck
+    } else {
+      deck = buildRoleDeck(players.length)
+    }
+
     const updates: Record<string, unknown> = {
       status: 'night',
       nightStep: 'main',
@@ -812,6 +896,8 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
     phaseLabels,
     minPlayers,
     countdown,
+    setGameMode,
+    setCustomRoleCount,
     createRoom,
     joinRoom,
     leaveRoom,
@@ -839,4 +925,4 @@ export function useRoom() {
   return context
 }
 
-export { rolesPalette, phaseLabels, minPlayers, phaseDurations }
+export { rolesPalette, phaseLabels, minPlayers, phaseDurations, customRoleOrder, defaultCustomRoles }

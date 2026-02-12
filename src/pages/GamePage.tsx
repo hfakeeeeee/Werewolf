@@ -274,20 +274,7 @@ export default function GamePage() {
   const visibleMessages = room?.chat?.filter(
     (msg) => (msg.audience ?? 'all') === 'all' || isWerewolf
   )
-  const voteSummary = useMemo(() => {
-    if (!room?.votes) return null
-    const tally: Record<string, number> = {}
-    Object.values(room.votes).forEach((targetId) => {
-      if (targetId === 'skip') return
-      tally[targetId] = (tally[targetId] ?? 0) + 1
-    })
-    const entries = Object.entries(tally)
-    if (entries.length === 0) return null
-    entries.sort((a, b) => b[1] - a[1])
-    const topVotes = entries[0][1]
-    const topIds = entries.filter(([, count]) => count === topVotes).map(([id]) => id)
-    return { topVotes, topIds }
-  }, [room?.votes])
+
   const eventLines = useMemo(() => {
     if (!room) return []
     const lines: string[] = []

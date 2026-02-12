@@ -1,7 +1,17 @@
 export type Phase = 'lobby' | 'night' | 'day' | 'voting' | 'results'
 export type GameMode = 'classic' | 'custom'
 
-export type Role = 'werewolf' | 'seer' | 'bodyguard' | 'villager' | 'hunter' | 'witch' | 'fool'
+export type Role =
+  | 'werewolf'
+  | 'seer'
+  | 'bodyguard'
+  | 'villager'
+  | 'hunter'
+  | 'witch'
+  | 'fool'
+  | 'detective'
+  | 'silencer'
+  | 'cupid'
 export type RoleCounts = Record<Role, number>
 
 export interface Player {
@@ -20,6 +30,10 @@ export interface NightActions {
   seerInspect?: string
   witchHeal?: boolean
   witchPoisonTarget?: string
+  detectiveTargetA?: string
+  detectiveTargetB?: string
+  silencerTarget?: string
+  cupidLoverIds?: string[]
 }
 
 export interface NightResult {
@@ -28,6 +42,10 @@ export interface NightResult {
   bodyguardSavedId?: string
   witchSavedId?: string
   witchPoisonedId?: string
+  detectiveResult?: {
+    targetIds: [string, string]
+    sameTeam: boolean
+  }
   seerResult?: {
     targetId: string
     role: Role
@@ -66,7 +84,7 @@ export interface Room {
   gameMode?: GameMode
   customRoles?: Partial<RoleCounts>
   phaseEndsAt?: number
-  nightStep?: 'main' | 'witch'
+  nightStep?: 'main' | 'witch' | 'cupid'
   bodyguardLastProtectedId?: string
   votes?: Record<string, string>
   nightActions?: NightActions
@@ -75,6 +93,9 @@ export interface Room {
   lastNight?: NightResult
   lastEliminated?: string[]
   hunterPending?: string
+  lovers?: string[]
+  silencedPlayerId?: string
+  silencedDayCount?: number
   winner?: 'villagers' | 'werewolves' | 'fool'
   winReason?: string
   chat?: ChatMessage[]

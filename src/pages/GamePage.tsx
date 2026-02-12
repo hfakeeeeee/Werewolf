@@ -10,6 +10,9 @@ const roleHints: Record<Role, string> = {
   witch: 'Act after others. Heal the pending victim or poison someone once each.',
   hunter: 'If you fall, pick one player to take down with you.',
   fool: 'You win if the village votes you out during the day.',
+  detective: 'Choose two players at night to learn if they share a team.',
+  silencer: 'Choose one player at night. They cannot speak the next day.',
+  cupid: 'Link two lovers at the start of the game. If one dies, the other follows.',
   villager: 'Discuss, deduce, and vote to eliminate werewolves.',
 }
 
@@ -20,6 +23,9 @@ const roleIcons: Record<Role, string> = {
   witch: '🧪',
   hunter: '🏹',
   fool: '🤡',
+  detective: '🕵️',
+  silencer: '🤐',
+  cupid: '💘',
   villager: '🧑‍🌾',
 }
 
@@ -171,6 +177,7 @@ export default function GamePage() {
     setVote,
     setNightAction,
     setWitchAction,
+    setCupidAction,
     sendChat,
     sendHunterShot,
     removePlayer,
@@ -231,16 +238,28 @@ export default function GamePage() {
   const nightActions = room?.nightActions
   const lastNight = room?.lastNight
   const isNight = room?.status === 'night'
-  const isNightMainStep = room?.nightStep !== 'witch'
+  const isNightMainStep = room?.nightStep === 'main'
   const isWitchStep = room?.status === 'night' && room?.nightStep === 'witch'
+  const isCupidStep = room?.status === 'night' && room?.nightStep === 'cupid'
   const nightVictimName = room?.witchTurn?.pendingVictimId
     ? room.players[room.witchTurn.pendingVictimId]?.name ?? 'Unknown'
     : null
   const isWerewolf = me?.role === 'werewolf'
-  const canChat = Boolean(me?.isAlive && (!isNight || isWerewolf))
+  const isSilenced =
+    room?.status === 'day' &&
+    room?.silencedPlayerId === playerId &&
+    room?.silencedDayCount === room?.dayCount
+  const loverIds = room?.lovers ?? []
+  const isLover = loverIds.includes(playerId)
+  const otherLoverId = isLover ? loverIds.find((id) => id !== playerId) : undefined
+  const otherLover = otherLoverId ? room?.players?.[otherLoverId] : undefined
+  const canShowLoverInfo = loverIds.length === 2 && roleRevealed
+  const nightHoldMessage = isCupidStep ? 'Waiting for Cupid to act.' : 'Waiting for the Witch to act.'
+  const canChat = Boolean(me?.isAlive && !isSilenced && (!isNight || isWerewolf))
   const canHunterShoot = room?.hunterPending === playerId
   const waitingForHunter = Boolean(room?.hunterPending && !canHunterShoot)
   const canWitchAct = Boolean(isWitchStep && me?.isAlive && me.role === 'witch')
+  const canCupidAct = Boolean(isCupidStep && me?.isAlive && me.role === 'cupid')
   const visibleMessages = room?.chat?.filter(
     (msg) => (msg.audience ?? 'all') === 'all' || isWerewolf
   )
@@ -369,29 +388,41 @@ export default function GamePage() {
                     }
                     const isMe = player.id === playerId
                     const showRole = isMe && player.role
-                    const nightSelection =
+                    const nightSelections =
                       room.status === 'night'
                         ? me?.role === 'werewolf'
-                          ? nightActions?.werewolfTarget
+                          ? [nightActions?.werewolfTarget]
                           : me?.role === 'bodyguard'
-                            ? nightActions?.bodyguardProtect
+                            ? [nightActions?.bodyguardProtect]
                             : me?.role === 'seer'
-                              ? nightActions?.seerInspect
+                              ? [nightActions?.seerInspect]
                               : me?.role === 'witch'
-                                ? nightActions?.witchPoisonTarget
-                              : undefined
-                        : undefined
+                                ? [nightActions?.witchPoisonTarget]
+                                : me?.role === 'silencer'
+                                  ? [nightActions?.silencerTarget]
+                                  : me?.role === 'detective'
+                                    ? [nightActions?.detectiveTargetA, nightActions?.detectiveTargetB]
+                                    : me?.role === 'cupid' && isCupidStep
+                                      ? nightActions?.cupidLoverIds ?? []
+                                      : []
+                        : []
+                    const selectedIds = nightSelections.filter(Boolean) as string[]
                     const isSelected =
                       (room.status === 'voting' && myVote === player.id) ||
-                      (room.status === 'night' && nightSelection === player.id)
+                      (room.status === 'night' && selectedIds.includes(player.id))
                     const canSelect =
                       room.status === 'voting'
                         ? Boolean(me?.isAlive)
                         : room.status === 'night'
                           ? Boolean(
-                              isNightMainStep &&
-                                me?.isAlive &&
-                                (me.role === 'werewolf' || me.role === 'bodyguard' || me.role === 'seer')
+                              me?.isAlive &&
+                                ((isCupidStep && me.role === 'cupid') ||
+                                  (isNightMainStep &&
+                                    (me.role === 'werewolf' ||
+                                      me.role === 'bodyguard' ||
+                                      me.role === 'seer' ||
+                                      me.role === 'detective' ||
+                                      me.role === 'silencer')))
                             )
                           : Boolean(canHunterShoot)
                     return (
@@ -405,6 +436,24 @@ export default function GamePage() {
                             return
                           }
                           if (room.status === 'night') {
+                            if (isCupidStep) {
+                              if (me?.role !== 'cupid') return
+                              const cupidSelection = nightActions?.cupidLoverIds ?? []
+                              if (cupidSelection.length === 0) {
+                                setCupidAction([player.id])
+                                return
+                              }
+                              if (cupidSelection.length === 1) {
+                                if (cupidSelection[0] === player.id) return
+                                setCupidAction([cupidSelection[0], player.id])
+                                return
+                              }
+                              if (cupidSelection.length === 2) {
+                                if (cupidSelection.includes(player.id)) return
+                                setCupidAction([cupidSelection[0], player.id])
+                              }
+                              return
+                            }
                             if (!isNightMainStep) return
                             if (me?.role === 'werewolf' && player.id !== playerId) {
                               setNightAction({ werewolfTarget: player.id })
@@ -415,6 +464,20 @@ export default function GamePage() {
                             }
                             if (me?.role === 'seer' && player.id !== playerId) {
                               setNightAction({ seerInspect: player.id })
+                            }
+                            if (me?.role === 'detective') {
+                              const targetA = nightActions?.detectiveTargetA
+                              const targetB = nightActions?.detectiveTargetB
+                              if (!targetA) {
+                                setNightAction({ detectiveTargetA: player.id })
+                              } else if (!targetB && player.id !== targetA) {
+                                setNightAction({ detectiveTargetB: player.id })
+                              } else if (player.id !== targetA) {
+                                setNightAction({ detectiveTargetB: player.id })
+                              }
+                            }
+                            if (me?.role === 'silencer' && player.id !== playerId) {
+                              setNightAction({ silencerTarget: player.id })
                             }
                             return
                           }
@@ -503,6 +566,14 @@ export default function GamePage() {
                           ? roleHints[me.role]
                           : 'Role hidden until the wheel stops.'}
                       </p>
+                      {canShowLoverInfo && isLover && otherLover && (
+                        <p>
+                          Lover:{' '}
+                          <span className="text-ashen-100">
+                            {otherLover.name} ({otherLover.role ?? 'unknown'})
+                          </span>
+                        </p>
+                      )}
                       <p>
                         Status:{' '}
                         <span className="text-ashen-100">{me?.isAlive ? 'Alive' : 'Eliminated'}</span>
@@ -620,11 +691,11 @@ export default function GamePage() {
                           {me.role === 'werewolf' &&
                             (isNightMainStep
                               ? 'Click a player in the grid to choose the werewolf target.'
-                              : 'Waiting for the Witch to act.')}
+                              : nightHoldMessage)}
                           {me.role === 'bodyguard' &&
                             (isNightMainStep
                               ? 'Click a player in the grid to protect them. You cannot protect the same player as last night.'
-                              : 'Waiting for the Witch to act.')}
+                              : nightHoldMessage)}
                           {me.role === 'bodyguard' &&
                             isNightMainStep &&
                             room.bodyguardLastProtectedId &&
@@ -632,11 +703,23 @@ export default function GamePage() {
                           {me.role === 'seer' &&
                             (isNightMainStep
                               ? 'Click a player in the grid to inspect them.'
-                              : 'Waiting for the Witch to act.')}
-                          {me.role === 'witch' &&
+                              : nightHoldMessage)}
+                          {me.role === 'detective' &&
                             (isNightMainStep
-                              ? 'Wait for Werewolf, Bodyguard, and Seer to finish. You act next.'
-                              : 'Choose to heal the pending victim, poison a player, or pass.')}
+                              ? 'Select two players to learn if they share a team.'
+                              : nightHoldMessage)}
+                          {me.role === 'silencer' &&
+                            (isNightMainStep
+                              ? 'Click a player to silence them for tomorrow.'
+                              : nightHoldMessage)}
+                          {me.role === 'cupid' &&
+                            (isCupidStep
+                              ? 'Choose two players to become lovers.'
+                              : 'You have no further night action.')}
+                          {me.role === 'witch' &&
+                            (isWitchStep
+                              ? 'Choose to heal the pending victim, poison a player, or pass.'
+                              : 'Wait for Werewolf, Bodyguard, and Seer to finish. You act next.')}
                           {me.role === 'fool' && 'You have no night action.'}
                           {me.role === 'villager' && 'You have no night action.'}
                           {me.role === 'hunter' && 'You have no night action.'}
@@ -691,6 +774,21 @@ export default function GamePage() {
                       </div>
                     )}
 
+                    {isCupidStep && (
+                      <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
+                        <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Cupid turn</p>
+                        <p className="mt-2">Select two players in the grid to become lovers.</p>
+                        {nightActions?.cupidLoverIds?.length ? (
+                          <p className="mt-2 text-xs text-ashen-300">
+                            Selected:{' '}
+                            {nightActions.cupidLoverIds
+                              .map((id) => room.players[id]?.name ?? 'Unknown')
+                              .join(', ')}
+                          </p>
+                        ) : null}
+                      </div>
+                    )}
+
                     {room.status === 'day' && (
                       <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
                         {(lastNight?.killedIds?.length ?? 0) > 0 ? (
@@ -713,6 +811,13 @@ export default function GamePage() {
                           <p className="mt-2 text-ashen-100">
                             Your vision: {room.players[lastNight.seerResult.targetId]?.name} is a{' '}
                             {lastNight.seerResult.role}.
+                          </p>
+                        )}
+                        {me?.role === 'detective' && lastNight?.detectiveResult && (
+                          <p className="mt-2 text-ashen-100">
+                            Your investigation: {room.players[lastNight.detectiveResult.targetIds[0]]?.name} and{' '}
+                            {room.players[lastNight.detectiveResult.targetIds[1]]?.name} are{' '}
+                            {lastNight.detectiveResult.sameTeam ? 'on the same team.' : 'on different teams.'}
                           </p>
                         )}
                       </div>
@@ -786,6 +891,9 @@ export default function GamePage() {
                 </div>
                 {isNight && !isWerewolf && (
                   <p className="mt-2 text-xs text-ashen-400">Night chat is for werewolves only.</p>
+                )}
+                {isSilenced && (
+                  <p className="mt-2 text-xs text-rose-200">You are silenced for today.</p>
                 )}
                 {error && <p className="mt-2 text-xs text-ember">{error}</p>}
                 <div className="mt-3 flex gap-2">

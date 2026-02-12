@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useRoom } from '../state/room'
+import { useTheme } from '../state/theme'
 
 const featureChips = [
   { icon: '\u{1F43A}', title: 'Werewolves', text: 'Hunt at night' },
@@ -17,6 +18,7 @@ const featureChips = [
 export default function LobbyPage() {
   const [activeTab, setActiveTab] = useState<'create' | 'join'>('create')
   const navigate = useNavigate()
+  const { theme, toggleTheme } = useTheme()
   const {
     playerName,
     setPlayerName,
@@ -70,6 +72,12 @@ export default function LobbyPage() {
               <span className="rounded-full border border-ashen-600 bg-ashen-900/50 px-3 py-1 text-ashen-200">
                 One Screen Lobby
               </span>
+              <button
+                onClick={toggleTheme}
+                className="rounded-full border border-ashen-600 bg-ashen-900/50 px-3 py-1 text-ashen-200"
+              >
+                {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+              </button>
             </div>
           </header>
 

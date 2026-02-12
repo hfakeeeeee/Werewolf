@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { customRoleOrder, defaultCustomRoles, useRoom } from '../state/room'
+import { useTheme } from '../state/theme'
 import type { Role } from '../lib/types'
 
 const roleHints: Record<Role, string> = {
@@ -157,6 +158,7 @@ export default function GamePage() {
   const [message, setMessage] = useState('')
   const [showRoleWheel, setShowRoleWheel] = useState(false)
   const [roleRevealed, setRoleRevealed] = useState(false)
+  const { theme, toggleTheme } = useTheme()
   const {
     playerId,
     setActiveCode,
@@ -427,6 +429,12 @@ export default function GamePage() {
                 </button>
               )}
               <button
+                onClick={toggleTheme}
+                className="h-9 min-w-[110px] rounded-lg border border-ashen-500 px-3 py-2 text-xs font-semibold text-ashen-100"
+              >
+                {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+              </button>
+              <button
                 onClick={goBack}
                 className="h-9 min-w-[110px] rounded-lg border border-ashen-500 px-3 py-2 text-xs font-semibold text-ashen-100"
               >
@@ -573,7 +581,7 @@ export default function GamePage() {
                             sendHunterShot(player.id)
                           }
                         }}
-                        className={`relative flex h-full flex-col overflow-hidden rounded-2xl border bg-ashen-800/70 transition ${
+                        className={`player-card relative flex h-full flex-col overflow-hidden rounded-2xl border bg-ashen-800/70 transition ${
                           isMe
                             ? 'border-ember shadow-[0_0_0_2px_rgba(245,176,76,0.35),0_14px_24px_rgba(0,0,0,0.35)]'
                             : 'border-ashen-700'

@@ -89,6 +89,7 @@ export interface Room {
   votes?: Record<string, string>
   finalVotes?: Record<string, 'save' | 'kill'>
   finalAccusedId?: string
+  finalAccusedVotes?: number
   nightActions?: NightActions
   witchState?: WitchState
   witchTurn?: WitchTurn

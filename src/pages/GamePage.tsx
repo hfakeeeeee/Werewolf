@@ -274,6 +274,20 @@ export default function GamePage() {
   const visibleMessages = room?.chat?.filter(
     (msg) => (msg.audience ?? 'all') === 'all' || isWerewolf
   )
+  const voteSummary = useMemo(() => {
+    if (!room?.votes) return null
+    const tally: Record<string, number> = {}
+    Object.values(room.votes).forEach((targetId) => {
+      if (targetId === 'skip') return
+      tally[targetId] = (tally[targetId] ?? 0) + 1
+    })
+    const entries = Object.entries(tally)
+    if (entries.length === 0) return null
+    entries.sort((a, b) => b[1] - a[1])
+    const topVotes = entries[0][1]
+    const topIds = entries.filter(([, count]) => count === topVotes).map(([id]) => id)
+    return { topVotes, topIds }
+  }, [room?.votes])
   const eventLines = useMemo(() => {
     if (!room) return []
     const lines: string[] = []
@@ -498,6 +512,10 @@ export default function GamePage() {
                     const isSelected =
                       (room.status === 'voting' && myVote === player.id) ||
                       (room.status === 'night' && selectedIds.includes(player.id))
+                    const voteCount =
+                      room.status === 'voting'
+                        ? Object.values(room.votes ?? {}).filter((id) => id === player.id).length
+                        : 0
                     const canSelect =
                       room.status === 'voting'
                         ? Boolean(me?.isAlive)
@@ -602,6 +620,11 @@ export default function GamePage() {
                           <span className="rounded-full bg-ashen-700/70 px-2 py-1">
                             {player.isAlive ? 'Active' : 'Out'}
                           </span>
+                          {room.status === 'voting' && voteCount > 0 && (
+                            <span className="rounded-full bg-ember/20 px-2 py-1 text-ember">
+                              Votes Received {voteCount}
+                            </span>
+                          )}
                           {room.status === 'lobby' && (
                             <span
                               className={`rounded-full px-2 py-1 ${
@@ -846,6 +869,26 @@ export default function GamePage() {
                       <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
                         <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Voting</p>
                         <p className="mt-2">Click a player card in the grid to vote. Click your own card to skip.</p>
+                        {room.votes && (
+                          <div className="mt-2 flex flex-wrap gap-2 text-xs text-ashen-300">
+                            {Object.entries(
+                              Object.values(room.votes).reduce<Record<string, number>>((acc, targetId) => {
+                                if (targetId === 'skip') return acc
+                                acc[targetId] = (acc[targetId] ?? 0) + 1
+                                return acc
+                              }, {})
+                            )
+                              .sort((a, b) => b[1] - a[1])
+                              .map(([id, count]) => (
+                                <span
+                                  key={id}
+                                  className="rounded-full border border-ashen-700 bg-ashen-900/50 px-2 py-1"
+                                >
+                                  {room.players[id]?.name ?? 'Someone'}: {count}
+                                </span>
+                              ))}
+                          </div>
+                        )}
                         <div className="mt-2 text-sm text-ashen-300">
                           {Object.values(room.votes ?? {}).length} vote(s) cast.
                         </div>
@@ -858,6 +901,11 @@ export default function GamePage() {
                         <p className="mt-2">
                           Accused: {room.finalAccusedId ? room.players[room.finalAccusedId]?.name ?? 'Unknown' : '—'}
                         </p>
+                        {typeof room.finalAccusedVotes === 'number' && (
+                          <p className="mt-1 text-xs text-ashen-300">
+                            Received {room.finalAccusedVotes} vote{room.finalAccusedVotes === 1 ? '' : 's'}.
+                          </p>
+                        )}
                         <p className="mt-1 text-xs text-ashen-300">
                           Cast your vote to save or eliminate.
                         </p>

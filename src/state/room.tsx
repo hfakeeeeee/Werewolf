@@ -834,11 +834,13 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
       if (voteResult?.targetId) {
         updates.status = 'final'
         updates.finalAccusedId = voteResult.targetId
+        updates.finalAccusedVotes = voteResult.votes
         updates.phaseEndsAt = Date.now() + phaseDurations.final * 1000
       } else {
         updates.status = 'night'
         updates.finalAccusedId = deleteField()
         updates.finalVotes = deleteField()
+        updates.finalAccusedVotes = deleteField()
       }
       await updateDoc(doc(db, 'rooms', room.code), updates)
       return
@@ -872,6 +874,7 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
       updates.status = 'night'
       updates.finalAccusedId = deleteField()
       updates.finalVotes = deleteField()
+      updates.finalAccusedVotes = deleteField()
     }
 
     if (room.status === 'day') {
@@ -922,6 +925,7 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
       nightActions: deleteField(),
       finalVotes: deleteField(),
       finalAccusedId: deleteField(),
+      finalAccusedVotes: deleteField(),
       witchState: deleteField(),
       witchTurn: deleteField(),
       lastNight: deleteField(),

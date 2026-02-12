@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { customRoleOrder, defaultCustomRoles, useRoom } from '../state/room'
 import type { Role } from '../lib/types'
@@ -259,9 +259,56 @@ export default function GamePage() {
   const canHunterShoot = room?.hunterPending === playerId
   const waitingForHunter = Boolean(room?.hunterPending && !canHunterShoot)
   const canWitchAct = Boolean(isWitchStep && me?.isAlive && me.role === 'witch')
+  const hasLoverInfo = Boolean(canShowLoverInfo && isLover && otherLover)
+  const hasDayIntel =
+    room?.status === 'day' &&
+    Boolean(
+      (me?.role === 'seer' && lastNight?.seerResult) ||
+        (me?.role === 'detective' && lastNight?.detectiveResult)
+    )
+  const showInfoPanel = Boolean(
+    hasLoverInfo ||
+      (room?.status === 'night' && me?.isAlive) ||
+      isWitchStep ||
+      isCupidStep ||
+      hasDayIntel ||
+      (room?.status === 'voting' && me?.isAlive) ||
+      room?.status === 'results' ||
+      waitingForHunter ||
+      canHunterShoot
+  )
   const visibleMessages = room?.chat?.filter(
     (msg) => (msg.audience ?? 'all') === 'all' || isWerewolf
   )
+  const eventLines = useMemo(() => {
+    if (!room) return []
+    const lines: string[] = []
+    if (room.lastNight) {
+      const killed = room.lastNight.killedIds ?? (room.lastNight.killedId ? [room.lastNight.killedId] : [])
+      if (killed.length > 0) {
+        const names = killed.map((id) => room.players[id]?.name ?? 'Someone').join(', ')
+        lines.push(`Night: ${names} ${killed.length === 1 ? 'was' : 'were'} taken.`)
+      } else {
+        lines.push('Night: No one was eliminated.')
+      }
+    }
+    if (room.lastEliminated) {
+      if (room.lastEliminated.length > 0) {
+        const names = room.lastEliminated.map((id) => room.players[id]?.name ?? 'Someone').join(', ')
+        lines.push(`Vote: ${names} ${room.lastEliminated.length === 1 ? 'was' : 'were'} eliminated.`)
+      } else {
+        lines.push('Vote: No elimination.')
+      }
+    }
+    return lines
+  }, [room])
+  const chatScrollRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const node = chatScrollRef.current
+    if (!node) return
+    node.scrollTop = node.scrollHeight
+  }, [visibleMessages?.length, room?.status])
 
   const handleSend = async () => {
     await sendChat(message)
@@ -311,8 +358,8 @@ export default function GamePage() {
               </div>
             </div>
           )}
-          <header className="flex flex-wrap items-start justify-between gap-4">
-            <div className="flex items-center gap-3">
+          <header className="flex flex-col gap-4 lg:grid lg:grid-cols-[1fr_auto_1fr] lg:items-center">
+            <div className="flex items-center gap-3 lg:justify-self-start">
               <div className="grid h-10 w-10 place-items-center rounded-xl bg-ember text-lg font-semibold text-slate-950">
                 W
               </div>
@@ -321,24 +368,52 @@ export default function GamePage() {
                 <h1 className="font-display text-2xl">Room {room.code}</h1>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="rounded-full border border-ashen-600 px-3 py-1 text-xs text-ashen-200">
+            <div className="flex flex-wrap items-center justify-center gap-2 rounded-full border border-ember/40 bg-ember/10 px-4 py-2 text-xs text-ember-100 shadow-[0_0_20px_rgba(245,176,76,0.35)]">
+              <span className="uppercase tracking-[0.28em]">Stage</span>
+              <span className="rounded-full border border-ember/30 bg-ashen-900/70 px-2 py-1 text-[11px] text-ashen-100">
                 {phaseLabels[room.status]}
               </span>
               {isWitchStep && (
-                <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-200">
+                <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-200">
                   Witch Turn
                 </span>
               )}
               {countdown !== null && room.status !== 'lobby' && room.status !== 'results' && (
-                <span className="rounded-full border border-ashen-600 px-3 py-1 text-xs text-ashen-200">
-                  {countdown}s left
+                <span className="rounded-full border border-ember/40 bg-ember/20 px-2 py-1 text-[11px] font-semibold text-ember">
+                  {countdown}s
                 </span>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-3 lg:justify-self-end">
+              {room.status === 'lobby' && me && (
+                <button
+                  onClick={toggleReady}
+                  className="h-9 min-w-[110px] rounded-lg border border-ashen-500 px-3 py-2 text-xs font-semibold text-ashen-100"
+                >
+                  {me.isReady ? 'Unready' : 'Ready'}
+                </button>
+              )}
+              {room.status === 'lobby' && !me && (
+                <button
+                  onClick={rejoinRoom}
+                  className="h-9 min-w-[110px] rounded-lg border border-ashen-500 px-3 py-2 text-xs font-semibold text-ashen-100"
+                >
+                  Rejoin Room
+                </button>
+              )}
+              {room.status === 'lobby' && isHost && (
+                <button
+                  onClick={startGame}
+                  disabled={!canStartWithCurrentSetup}
+                  className="h-9 min-w-[110px] rounded-lg bg-ember px-3 py-2 text-xs font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Start Game
+                </button>
               )}
               {isHost && room.status !== 'results' && (
                 <button
                   onClick={advancePhase}
-                  className="rounded-lg bg-ember px-3 py-2 text-xs font-semibold text-slate-950"
+                  className="h-9 min-w-[110px] rounded-lg bg-ember px-3 py-2 text-xs font-semibold text-slate-950"
                 >
                   Advance Phase
                 </button>
@@ -346,21 +421,35 @@ export default function GamePage() {
               {isHost && (
                 <button
                   onClick={resetLobby}
-                  className="rounded-lg border border-ashen-500 px-3 py-2 text-xs font-semibold text-ashen-100"
+                  className="h-9 min-w-[110px] rounded-lg border border-ashen-500 px-3 py-2 text-xs font-semibold text-ashen-100"
                 >
                   Reset to Lobby
                 </button>
               )}
               <button
                 onClick={goBack}
-                className="rounded-lg border border-ashen-500 px-4 py-2 text-sm font-semibold text-ashen-100"
+                className="h-9 min-w-[110px] rounded-lg border border-ashen-500 px-3 py-2 text-xs font-semibold text-ashen-100"
               >
                 Leave Room
               </button>
             </div>
           </header>
+          {eventLines.length > 0 && (
+            <div className="mt-3 rounded-2xl border border-ashen-700 bg-ashen-900/70 px-4 py-2 text-xs text-ashen-200 shadow-inky">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-ember/15 px-2 py-1 text-[10px] uppercase tracking-[0.3em] text-ember">
+                  Events
+                </span>
+                {eventLines.map((line) => (
+                  <span key={line} className="rounded-full border border-ashen-700 bg-ashen-800/60 px-3 py-1">
+                    {line}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
-          <main className="mt-4 grid gap-4 lg:h-[calc(100vh-120px)] lg:grid-cols-[1.25fr_0.75fr] lg:overflow-hidden">
+          <main className="mt-4 grid gap-4 lg:h-[calc(100vh-160px)] lg:grid-cols-[1.25fr_0.75fr] lg:overflow-hidden">
             <section className="space-y-4 lg:flex lg:h-full lg:flex-col lg:overflow-hidden">
               <div className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-3 lg:flex lg:h-full lg:flex-col">
                 <div className="flex flex-wrap items-center justify-between gap-4">
@@ -489,7 +578,7 @@ export default function GamePage() {
                             ? 'border-ember shadow-[0_0_0_2px_rgba(245,176,76,0.35),0_14px_24px_rgba(0,0,0,0.35)]'
                             : 'border-ashen-700'
                         } ${player.isAlive ? 'opacity-100' : 'opacity-40'} ${
-                          isSelected ? 'ring-2 ring-emerald-400/80' : ''
+                          isSelected ? 'outline outline-2 outline-emerald-400/80' : ''
                         } ${canSelect ? 'cursor-pointer' : ''}`}
                       >
                         <div className="absolute left-2 top-2 z-10 flex items-center gap-2 rounded-full bg-ashen-900/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-ashen-100">
@@ -549,335 +638,270 @@ export default function GamePage() {
             </section>
 
             <aside className="space-y-4 lg:flex lg:h-full lg:flex-col lg:overflow-hidden">
-              <div className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-3">
-                <div className="grid gap-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">You</p>
-                    <div className="mt-2 grid gap-1 text-sm text-ashen-200">
-                      <p>
-                        Role:{' '}
-                        <span className="text-ashen-100">
-                          {roleRevealed ? me?.role ?? '...' : '???'}
-                        </span>
+              {room.status === 'lobby' && isHost && (
+                <div className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-3 shadow-inky">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Game setup</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={() => setGameMode('classic')}
+                        className={`rounded-full px-3 py-1 text-[11px] font-semibold ${
+                          gameMode === 'classic'
+                            ? 'bg-ember text-slate-950'
+                            : 'border border-ashen-500 text-ashen-100'
+                        }`}
+                      >
+                        Classic
+                      </button>
+                      <button
+                        onClick={() => setGameMode('custom')}
+                        className={`rounded-full px-3 py-1 text-[11px] font-semibold ${
+                          gameMode === 'custom'
+                            ? 'bg-ember text-slate-950'
+                            : 'border border-ashen-500 text-ashen-100'
+                        }`}
+                      >
+                        Custom
+                      </button>
+                    </div>
+                  </div>
+
+                  {gameMode === 'custom' && (
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {customRoleOrder.map((role) => (
+                        <div key={role} className="flex items-center justify-between gap-2">
+                          <span className="capitalize text-xs text-ashen-200">{role}</span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setCustomRoleCount(role, (customRoles[role] ?? 0) - 1)}
+                              className="rounded-md border border-ashen-500 px-2 py-0.5 text-xs text-ashen-100"
+                            >
+                              -
+                            </button>
+                            <span className="w-5 text-center text-xs text-ashen-100">
+                              {customRoles[role] ?? 0}
+                            </span>
+                            <button
+                              onClick={() => setCustomRoleCount(role, (customRoles[role] ?? 0) + 1)}
+                              className="rounded-md border border-ashen-500 px-2 py-0.5 text-xs text-ashen-100"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      <p className="text-xs text-ashen-300 sm:col-span-2">
+                        Total roles: {customTotal} / Players: {orderedPlayers.length}
                       </p>
-                      <p className="text-ashen-300">
-                        {roleRevealed && me?.role
-                          ? roleHints[me.role]
-                          : 'Role hidden until the wheel stops.'}
-                      </p>
-                      {canShowLoverInfo && isLover && otherLover && (
-                        <p>
-                          Lover:{' '}
-                          <span className="text-ashen-100">
-                            {otherLover.name} ({otherLover.role ?? 'unknown'})
-                          </span>
+                      {!customHasWerewolf && (
+                        <p className="text-xs text-ember sm:col-span-2">
+                          Custom setup must include at least 1 werewolf.
                         </p>
                       )}
-                      <p>
-                        Status:{' '}
-                        <span className="text-ashen-100">{me?.isAlive ? 'Alive' : 'Eliminated'}</span>
-                      </p>
+                      {!customMatchesPlayers && (
+                        <p className="text-xs text-ember sm:col-span-2">
+                          Role total must match player count.
+                        </p>
+                      )}
                     </div>
-                    {room.status === 'lobby' && (
-                      <div className="mt-3 space-y-3">
-                        <div className="flex flex-wrap gap-2">
-                          {me ? (
-                            <button
-                              onClick={toggleReady}
-                              className="rounded-lg border border-ashen-500 px-4 py-2 text-sm font-semibold text-ashen-100"
-                            >
-                              {me.isReady ? 'Unready' : 'Ready'}
-                            </button>
-                          ) : (
-                            <button
-                              onClick={rejoinRoom}
-                              className="rounded-lg border border-ashen-500 px-4 py-2 text-sm font-semibold text-ashen-100"
-                            >
-                              Rejoin Room
-                            </button>
-                          )}
-                          {isHost && (
-                            <button
-                              onClick={startGame}
-                              disabled={!canStartWithCurrentSetup}
-                              className="rounded-lg bg-ember px-4 py-2 text-sm font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              Start Game
-                            </button>
-                          )}
-                          {isHost && (
-                            <button
-                              onClick={resetLobby}
-                              className="rounded-lg border border-ashen-500 px-4 py-2 text-sm font-semibold text-ashen-100"
-                            >
-                              Reset to Lobby
-                            </button>
-                          )}
-                        </div>
+                  )}
+                </div>
+              )}
+              {showInfoPanel && (
+                <div className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-3 lg:max-h-[38%] lg:overflow-y-auto">
+                  <div className="grid gap-3">
+                    <div>
+                      {hasLoverInfo && (
+                        <p className="mt-2 text-xs text-ashen-300">
+                          Lover: {otherLover?.name} ({otherLover?.role ?? 'unknown'})
+                        </p>
+                      )}
+                    </div>
 
-                        {isHost && (
-                          <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3">
-                            <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Game setup</p>
-                            <div className="mt-2 flex gap-2">
+                    <div className="space-y-3">
+                      {room.status === 'night' && me?.isAlive && (
+                        <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
+                          <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Night actions</p>
+                          <p className="mt-2">
+                            {me.role === 'werewolf' &&
+                              (isNightMainStep
+                                ? 'Click a player in the grid to choose the werewolf target.'
+                                : nightHoldMessage)}
+                            {me.role === 'bodyguard' &&
+                              (isNightMainStep
+                                ? 'Click a player in the grid to protect them. You cannot protect the same player as last night.'
+                                : nightHoldMessage)}
+                            {me.role === 'bodyguard' &&
+                              isNightMainStep &&
+                              room.bodyguardLastProtectedId &&
+                              ` Last protected: ${room.players[room.bodyguardLastProtectedId]?.name ?? 'Unknown'}.`}
+                            {me.role === 'seer' &&
+                              (isNightMainStep
+                                ? 'Click a player in the grid to inspect them.'
+                                : nightHoldMessage)}
+                            {me.role === 'detective' &&
+                              (isNightMainStep
+                                ? 'Select two players to learn if they share a team.'
+                                : nightHoldMessage)}
+                            {me.role === 'silencer' &&
+                              (isNightMainStep
+                                ? 'Click a player to silence them for tomorrow.'
+                                : nightHoldMessage)}
+                            {me.role === 'cupid' &&
+                              (isCupidStep
+                                ? 'Choose two players to become lovers.'
+                                : 'You have no further night action.')}
+                            {me.role === 'witch' &&
+                              (isWitchStep
+                                ? 'Choose to heal the pending victim, poison a player, or pass.'
+                                : 'Wait for Werewolf, Bodyguard, and Seer to finish. You act next.')}
+                            {me.role === 'fool' && 'You have no night action.'}
+                            {me.role === 'villager' && 'You have no night action.'}
+                            {me.role === 'hunter' && 'You have no night action.'}
+                          </p>
+                        </div>
+                      )}
+
+                      {isWitchStep && (
+                        <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
+                          <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Witch turn</p>
+                          <p className="mt-2">
+                            {nightVictimName
+                              ? `Pending victim: ${nightVictimName}.`
+                              : 'No pending victim tonight.'}
+                          </p>
+                          {canWitchAct && (
+                            <div className="mt-3 space-y-2">
+                              {!room.witchState?.healUsed && room.witchTurn?.pendingVictimId && (
+                                <button
+                                  onClick={() => setWitchAction('heal')}
+                                  className="rounded-lg bg-emerald-500/20 px-3 py-2 text-xs font-semibold text-emerald-200"
+                                >
+                                  Use Heal Potion
+                                </button>
+                              )}
+                              {!room.witchState?.poisonUsed && (
+                                <div>
+                                  <p className="text-xs text-ashen-400">Poison target:</p>
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    {alivePlayers
+                                      .filter((p) => p.id !== playerId)
+                                      .map((player) => (
+                                        <button
+                                          key={player.id}
+                                          onClick={() => setWitchAction('poison', player.id)}
+                                          className="rounded-full bg-rose-500/20 px-3 py-1 text-xs text-rose-200"
+                                        >
+                                          {player.name}
+                                        </button>
+                                      ))}
+                                  </div>
+                                </div>
+                              )}
                               <button
-                                onClick={() => setGameMode('classic')}
-                                className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
-                                  gameMode === 'classic'
-                                    ? 'bg-ember text-slate-950'
-                                    : 'border border-ashen-500 text-ashen-100'
-                                }`}
+                                onClick={() => setWitchAction('pass')}
+                                className="rounded-lg border border-ashen-500 px-3 py-2 text-xs font-semibold text-ashen-100"
                               >
-                                Classic
-                              </button>
-                              <button
-                                onClick={() => setGameMode('custom')}
-                                className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
-                                  gameMode === 'custom'
-                                    ? 'bg-ember text-slate-950'
-                                    : 'border border-ashen-500 text-ashen-100'
-                                }`}
-                              >
-                                Custom
+                                Pass
                               </button>
                             </div>
-
-                            {gameMode === 'custom' && (
-                              <div className="mt-3 space-y-2">
-                                {customRoleOrder.map((role) => (
-                                  <div key={role} className="flex items-center justify-between gap-2">
-                                    <span className="capitalize text-xs text-ashen-200">{role}</span>
-                                    <div className="flex items-center gap-2">
-                                      <button
-                                        onClick={() => setCustomRoleCount(role, (customRoles[role] ?? 0) - 1)}
-                                        className="rounded-md border border-ashen-500 px-2 py-1 text-xs text-ashen-100"
-                                      >
-                                        -
-                                      </button>
-                                      <span className="w-5 text-center text-xs text-ashen-100">
-                                        {customRoles[role] ?? 0}
-                                      </span>
-                                      <button
-                                        onClick={() => setCustomRoleCount(role, (customRoles[role] ?? 0) + 1)}
-                                        className="rounded-md border border-ashen-500 px-2 py-1 text-xs text-ashen-100"
-                                      >
-                                        +
-                                      </button>
-                                    </div>
-                                  </div>
-                                ))}
-                                <p className="text-xs text-ashen-300">
-                                  Total roles: {customTotal} / Players: {orderedPlayers.length}
-                                </p>
-                                {!customHasWerewolf && (
-                                  <p className="text-xs text-ember">Custom setup must include at least 1 werewolf.</p>
-                                )}
-                                {!customMatchesPlayers && (
-                                  <p className="text-xs text-ember">Role total must match player count.</p>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-3">
-                    {room.status === 'night' && me?.isAlive && (
-                      <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
-                        <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Night actions</p>
-                        <p className="mt-2">
-                          {me.role === 'werewolf' &&
-                            (isNightMainStep
-                              ? 'Click a player in the grid to choose the werewolf target.'
-                              : nightHoldMessage)}
-                          {me.role === 'bodyguard' &&
-                            (isNightMainStep
-                              ? 'Click a player in the grid to protect them. You cannot protect the same player as last night.'
-                              : nightHoldMessage)}
-                          {me.role === 'bodyguard' &&
-                            isNightMainStep &&
-                            room.bodyguardLastProtectedId &&
-                            ` Last protected: ${room.players[room.bodyguardLastProtectedId]?.name ?? 'Unknown'}.`}
-                          {me.role === 'seer' &&
-                            (isNightMainStep
-                              ? 'Click a player in the grid to inspect them.'
-                              : nightHoldMessage)}
-                          {me.role === 'detective' &&
-                            (isNightMainStep
-                              ? 'Select two players to learn if they share a team.'
-                              : nightHoldMessage)}
-                          {me.role === 'silencer' &&
-                            (isNightMainStep
-                              ? 'Click a player to silence them for tomorrow.'
-                              : nightHoldMessage)}
-                          {me.role === 'cupid' &&
-                            (isCupidStep
-                              ? 'Choose two players to become lovers.'
-                              : 'You have no further night action.')}
-                          {me.role === 'witch' &&
-                            (isWitchStep
-                              ? 'Choose to heal the pending victim, poison a player, or pass.'
-                              : 'Wait for Werewolf, Bodyguard, and Seer to finish. You act next.')}
-                          {me.role === 'fool' && 'You have no night action.'}
-                          {me.role === 'villager' && 'You have no night action.'}
-                          {me.role === 'hunter' && 'You have no night action.'}
-                        </p>
-                      </div>
-                    )}
-
-                    {isWitchStep && (
-                      <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
-                        <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Witch turn</p>
-                        <p className="mt-2">
-                          {nightVictimName
-                            ? `Pending victim: ${nightVictimName}.`
-                            : 'No pending victim tonight.'}
-                        </p>
-                        {canWitchAct && (
-                          <div className="mt-3 space-y-2">
-                            {!room.witchState?.healUsed && room.witchTurn?.pendingVictimId && (
-                              <button
-                                onClick={() => setWitchAction('heal')}
-                                className="rounded-lg bg-emerald-500/20 px-3 py-2 text-xs font-semibold text-emerald-200"
-                              >
-                                Use Heal Potion
-                              </button>
-                            )}
-                            {!room.witchState?.poisonUsed && (
-                              <div>
-                                <p className="text-xs text-ashen-400">Poison target:</p>
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                  {alivePlayers
-                                    .filter((p) => p.id !== playerId)
-                                    .map((player) => (
-                                      <button
-                                        key={player.id}
-                                        onClick={() => setWitchAction('poison', player.id)}
-                                        className="rounded-full bg-rose-500/20 px-3 py-1 text-xs text-rose-200"
-                                      >
-                                        {player.name}
-                                      </button>
-                                    ))}
-                                </div>
-                              </div>
-                            )}
-                            <button
-                              onClick={() => setWitchAction('pass')}
-                              className="rounded-lg border border-ashen-500 px-3 py-2 text-xs font-semibold text-ashen-100"
-                            >
-                              Pass
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {isCupidStep && (
-                      <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
-                        <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Cupid turn</p>
-                        <p className="mt-2">Select two players in the grid to become lovers.</p>
-                        {nightActions?.cupidLoverIds?.length ? (
-                          <p className="mt-2 text-xs text-ashen-300">
-                            Selected:{' '}
-                            {nightActions.cupidLoverIds
-                              .map((id) => room.players[id]?.name ?? 'Unknown')
-                              .join(', ')}
-                          </p>
-                        ) : null}
-                      </div>
-                    )}
-
-                    {room.status === 'day' && (
-                      <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
-                        {(lastNight?.killedIds?.length ?? 0) > 0 ? (
-                          <p>
-                            Dawn breaks.{' '}
-                            {lastNight?.killedIds
-                              ?.map((id) => room.players[id]?.name ?? 'Someone')
-                              .join(', ')}{' '}
-                            {lastNight?.killedIds?.length === 1 ? 'was' : 'were'} taken in the night.
-                          </p>
-                        ) : lastNight?.killedId ? (
-                          <p>
-                            Dawn breaks. {room.players[lastNight.killedId]?.name ?? 'Someone'} was taken in the
-                            night.
-                          </p>
-                        ) : (
-                          <p>No one was eliminated overnight.</p>
-                        )}
-                        {me?.role === 'seer' && lastNight?.seerResult && (
-                          <p className="mt-2 text-ashen-100">
-                            Your vision: {room.players[lastNight.seerResult.targetId]?.name} is a{' '}
-                            {lastNight.seerResult.role}.
-                          </p>
-                        )}
-                        {me?.role === 'detective' && lastNight?.detectiveResult && (
-                          <p className="mt-2 text-ashen-100">
-                            Your investigation: {room.players[lastNight.detectiveResult.targetIds[0]]?.name} and{' '}
-                            {room.players[lastNight.detectiveResult.targetIds[1]]?.name} are{' '}
-                            {lastNight.detectiveResult.sameTeam ? 'on the same team.' : 'on different teams.'}
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    {room.status === 'voting' && me?.isAlive && (
-                      <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
-                        <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Voting</p>
-                        <p className="mt-2">Click a player card in the grid to vote. Click your own card to skip.</p>
-                        <div className="mt-2 text-sm text-ashen-300">
-                          {Object.values(room.votes ?? {}).length} vote(s) cast.
+                          )}
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    {room.status === 'results' && (
-                      <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
-                        <p className="font-display text-xl text-ashen-100">
-                          {room.winner === 'villagers'
-                            ? 'Villagers win!'
-                            : room.winner === 'werewolves'
-                              ? 'Werewolves win!'
-                              : 'The Fool wins!'}
-                        </p>
-                        <p className="mt-2">{room.winReason}</p>
-                      </div>
-                    )}
-
-                    {waitingForHunter && (
-                      <div className="rounded-xl border border-ember/40 bg-ember/10 p-3 text-sm text-ashen-100">
-                        Waiting for the Hunter's final shot...
-                      </div>
-                    )}
-
-                    {canHunterShoot && (
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Hunter last shot</p>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {alivePlayers
-                            .filter((p) => p.id !== playerId)
-                            .map((player) => (
-                              <button
-                                key={player.id}
-                                onClick={() => sendHunterShot(player.id)}
-                                className="rounded-full bg-ember px-3 py-1 text-xs text-slate-950"
-                              >
-                                {player.name}
-                              </button>
-                            ))}
+                      {isCupidStep && (
+                        <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
+                          <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Cupid turn</p>
+                          <p className="mt-2">Select two players in the grid to become lovers.</p>
+                          {nightActions?.cupidLoverIds?.length ? (
+                            <p className="mt-2 text-xs text-ashen-300">
+                              Selected:{' '}
+                              {nightActions.cupidLoverIds
+                                .map((id) => room.players[id]?.name ?? 'Unknown')
+                                .join(', ')}
+                            </p>
+                          ) : null}
                         </div>
-                        <p className="mt-2 text-xs text-ashen-400">
-                          You were eliminated. Choose one player to take with you.
-                        </p>
-                      </div>
-                    )}
+                      )}
+
+                      {room.status === 'day' && hasDayIntel && (
+                        <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
+                          {me?.role === 'seer' && lastNight?.seerResult && (
+                            <p className="text-ashen-100">
+                              Your vision: {room.players[lastNight.seerResult.targetId]?.name} is a{' '}
+                              {lastNight.seerResult.role}.
+                            </p>
+                          )}
+                          {me?.role === 'detective' && lastNight?.detectiveResult && (
+                            <p className="text-ashen-100">
+                              Your investigation: {room.players[lastNight.detectiveResult.targetIds[0]]?.name} and{' '}
+                              {room.players[lastNight.detectiveResult.targetIds[1]]?.name} are{' '}
+                              {lastNight.detectiveResult.sameTeam ? 'on the same team.' : 'on different teams.'}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {room.status === 'voting' && me?.isAlive && (
+                        <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
+                          <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Voting</p>
+                          <p className="mt-2">Click a player card in the grid to vote. Click your own card to skip.</p>
+                          <div className="mt-2 text-sm text-ashen-300">
+                            {Object.values(room.votes ?? {}).length} vote(s) cast.
+                          </div>
+                        </div>
+                      )}
+
+                      {room.status === 'results' && (
+                        <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
+                          <p className="font-display text-xl text-ashen-100">
+                            {room.winner === 'villagers'
+                              ? 'Villagers win!'
+                              : room.winner === 'werewolves'
+                                ? 'Werewolves win!'
+                                : 'The Fool wins!'}
+                          </p>
+                          <p className="mt-2">{room.winReason}</p>
+                        </div>
+                      )}
+
+                      {waitingForHunter && (
+                        <div className="rounded-xl border border-ember/40 bg-ember/10 p-3 text-sm text-ashen-100">
+                          Waiting for the Hunter's final shot...
+                        </div>
+                      )}
+
+                      {canHunterShoot && (
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Hunter last shot</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {alivePlayers
+                              .filter((p) => p.id !== playerId)
+                              .map((player) => (
+                                <button
+                                  key={player.id}
+                                  onClick={() => sendHunterShot(player.id)}
+                                  className="rounded-full bg-ember px-3 py-1 text-xs text-slate-950"
+                                >
+                                  {player.name}
+                                </button>
+                              ))}
+                          </div>
+                          <p className="mt-2 text-xs text-ashen-400">
+                            You were eliminated. Choose one player to take with you.
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
               <div className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-3 shadow-inky lg:flex lg:flex-1 lg:flex-col lg:min-h-0">
                 <h3 className="font-display text-xl">Chat</h3>
-                <div className="mt-2 flex flex-1 flex-col gap-3 overflow-y-auto rounded-xl border border-ashen-700 bg-ashen-800/70 p-3">
+                <div
+                  ref={chatScrollRef}
+                  className="mt-2 flex flex-1 flex-col gap-3 overflow-y-auto rounded-xl border border-ashen-700 bg-ashen-800/70 p-3"
+                >
                   {visibleMessages?.length ? (
                     visibleMessages.map((msg) => (
                       <div key={msg.id} className="text-sm text-ashen-200">

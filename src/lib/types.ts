@@ -1,4 +1,4 @@
-export type Phase = 'lobby' | 'night' | 'day' | 'voting' | 'results'
+export type Phase = 'lobby' | 'night' | 'day' | 'voting' | 'final' | 'results'
 export type GameMode = 'classic' | 'custom'
 
 export type Role =
@@ -87,6 +87,8 @@ export interface Room {
   nightStep?: 'main' | 'witch' | 'cupid'
   bodyguardLastProtectedId?: string
   votes?: Record<string, string>
+  finalVotes?: Record<string, 'save' | 'kill'>
+  finalAccusedId?: string
   nightActions?: NightActions
   witchState?: WitchState
   witchTurn?: WitchTurn

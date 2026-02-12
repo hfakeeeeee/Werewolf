@@ -166,6 +166,7 @@ export default function GamePage() {
     setVote,
     setNightAction,
     setWitchAction,
+    setFinalVote,
     setCupidAction,
     sendChat,
     sendHunterShot,
@@ -230,9 +231,11 @@ export default function GamePage() {
   const isNightMainStep = room?.nightStep === 'main'
   const isWitchStep = room?.status === 'night' && room?.nightStep === 'witch'
   const isCupidStep = room?.status === 'night' && room?.nightStep === 'cupid'
+  const isFinalPhase = room?.status === 'final'
   const nightVictimName = room?.witchTurn?.pendingVictimId
     ? room.players[room.witchTurn.pendingVictimId]?.name ?? 'Unknown'
     : null
+  const meRecord = room?.players?.[playerId]
   const isWerewolf = me?.role === 'werewolf'
   const isSilenced =
     room?.status === 'day' &&
@@ -248,6 +251,7 @@ export default function GamePage() {
   const canHunterShoot = room?.hunterPending === playerId
   const waitingForHunter = Boolean(room?.hunterPending && !canHunterShoot)
   const canWitchAct = Boolean(isWitchStep && me?.isAlive && me.role === 'witch')
+  const canFinalVote = Boolean(isFinalPhase && meRecord?.isAlive)
   const hasLoverInfo = Boolean(canShowLoverInfo && isLover && otherLover)
   const hasDayIntel =
     room?.status === 'day' &&
@@ -262,6 +266,7 @@ export default function GamePage() {
       isCupidStep ||
       hasDayIntel ||
       (room?.status === 'voting' && me?.isAlive) ||
+      isFinalPhase ||
       room?.status === 'results' ||
       waitingForHunter ||
       canHunterShoot
@@ -837,20 +842,51 @@ export default function GamePage() {
                         </div>
                       )}
 
-                      {room.status === 'voting' && me?.isAlive && (
-                        <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
-                          <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Voting</p>
-                          <p className="mt-2">Click a player card in the grid to vote. Click your own card to skip.</p>
-                          <div className="mt-2 text-sm text-ashen-300">
-                            {Object.values(room.votes ?? {}).length} vote(s) cast.
-                          </div>
+                    {room.status === 'voting' && me?.isAlive && (
+                      <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
+                        <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Voting</p>
+                        <p className="mt-2">Click a player card in the grid to vote. Click your own card to skip.</p>
+                        <div className="mt-2 text-sm text-ashen-300">
+                          {Object.values(room.votes ?? {}).length} vote(s) cast.
                         </div>
-                      )}
+                      </div>
+                    )}
 
-                      {room.status === 'results' && (
-                        <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
-                          <p className="font-display text-xl text-ashen-100">
-                            {room.winner === 'villagers'
+                    {isFinalPhase && (
+                      <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
+                        <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Final Plea</p>
+                        <p className="mt-2">
+                          Accused: {room.finalAccusedId ? room.players[room.finalAccusedId]?.name ?? 'Unknown' : '—'}
+                        </p>
+                        <p className="mt-1 text-xs text-ashen-300">
+                          Cast your vote to save or eliminate.
+                        </p>
+                        {canFinalVote && (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button
+                              onClick={() => setFinalVote('save')}
+                              className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-200"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setFinalVote('kill')}
+                              className="rounded-full border border-rose-500/40 bg-rose-500/10 px-3 py-1 text-xs text-rose-200"
+                            >
+                              Kill
+                            </button>
+                          </div>
+                        )}
+                        <div className="mt-2 text-xs text-ashen-300">
+                          {Object.values(room.finalVotes ?? {}).length} vote(s) cast.
+                        </div>
+                      </div>
+                    )}
+
+                    {room.status === 'results' && (
+                      <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
+                        <p className="font-display text-xl text-ashen-100">
+                          {room.winner === 'villagers'
                               ? 'Villagers win!'
                               : room.winner === 'werewolves'
                                 ? 'Werewolves win!'

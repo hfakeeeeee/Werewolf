@@ -64,13 +64,15 @@ const phaseLabels: Record<Phase, string> = {
   night: 'Night',
   day: 'Day',
   voting: 'Voting',
+  final: 'Final Plea',
   results: 'Results',
 }
 
 const phaseDurations: Record<Exclude<Phase, 'lobby' | 'results'>, number> = {
   night: 45,
-  day: 60,
-  voting: 30,
+  day: 120,
+  voting: 45,
+  final: 30,
 }
 
 function getPlayerId() {
@@ -167,6 +169,8 @@ function nextPhase(current: Phase): Phase {
     case 'day':
       return 'voting'
     case 'voting':
+      return 'final'
+    case 'final':
       return 'night'
     default:
       return 'night'
@@ -332,6 +336,7 @@ export interface RoomState {
   advancePhase: () => Promise<void>
   resetLobby: () => Promise<void>
   setVote: (targetId: string) => Promise<void>
+  setFinalVote: (vote: 'save' | 'kill') => Promise<void>
   setNightAction: (update: Partial<NightActions>) => Promise<void>
   setWitchAction: (action: 'heal' | 'poison' | 'pass', targetId?: string) => Promise<void>
   setCupidAction: (targetIds: string[]) => Promise<void>
@@ -598,6 +603,8 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
       updatedAt: Date.now(),
       phaseEndsAt: Date.now() + phaseDurations.night * 1000,
       votes: deleteField(),
+      finalVotes: deleteField(),
+      finalAccusedId: deleteField(),
       nightActions: deleteField(),
       bodyguardLastProtectedId: deleteField(),
       lovers: deleteField(),
@@ -630,6 +637,16 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
     const ref = doc(db, 'rooms', room.code)
     await updateDoc(ref, {
       [`votes.${playerId}`]: targetId,
+      updatedAt: Date.now(),
+    })
+  }
+
+  const setFinalVote = async (vote: 'save' | 'kill') => {
+    if (!room || !me) return
+    if (room.status !== 'final') return
+    if (!me.isAlive) return
+    await updateDoc(doc(db, 'rooms', room.code), {
+      [`finalVotes.${playerId}`]: vote,
       updatedAt: Date.now(),
     })
   }
@@ -727,6 +744,7 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
       status: next,
       updatedAt: Date.now(),
       votes: deleteField(),
+      finalVotes: deleteField(),
       phaseEndsAt:
         next !== 'lobby' && next !== 'results'
           ? Date.now() + phaseDurations[next as keyof typeof phaseDurations] * 1000
@@ -814,13 +832,32 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
     if (room.status === 'voting') {
       const voteResult = computeVoteResult(room.votes)
       if (voteResult?.targetId) {
-        const votedOut = applyLoverDeaths([voteResult.targetId], room.lovers)
-        votedOut.forEach((id) => {
+        updates.status = 'final'
+        updates.finalAccusedId = voteResult.targetId
+        updates.phaseEndsAt = Date.now() + phaseDurations.final * 1000
+      } else {
+        updates.status = 'night'
+        updates.finalAccusedId = deleteField()
+        updates.finalVotes = deleteField()
+      }
+      await updateDoc(doc(db, 'rooms', room.code), updates)
+      return
+    }
+
+    if (room.status === 'final') {
+      const accusedId = room.finalAccusedId
+      const votes = room.finalVotes ?? {}
+      const killVotes = Object.values(votes).filter((v) => v === 'kill').length
+      const saveVotes = Object.values(votes).filter((v) => v === 'save').length
+      const shouldKill = killVotes > saveVotes
+      if (accusedId && shouldKill) {
+        const finalEliminated = applyLoverDeaths([accusedId], room.lovers)
+        finalEliminated.forEach((id) => {
           updates[`players.${id}.isAlive`] = false
           eliminated.push(id)
         })
-        updates.lastEliminated = votedOut
-        const eliminatedPlayer = players.find((player) => player.id === voteResult.targetId)
+        updates.lastEliminated = finalEliminated
+        const eliminatedPlayer = players.find((player) => player.id === accusedId)
         if (eliminatedPlayer?.role === 'fool') {
           updates.status = 'results'
           updates.phaseEndsAt = deleteField()
@@ -832,6 +869,9 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
       } else {
         updates.lastEliminated = []
       }
+      updates.status = 'night'
+      updates.finalAccusedId = deleteField()
+      updates.finalVotes = deleteField()
     }
 
     if (room.status === 'day') {
@@ -880,6 +920,8 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
       bodyguardLastProtectedId: deleteField(),
       votes: deleteField(),
       nightActions: deleteField(),
+      finalVotes: deleteField(),
+      finalAccusedId: deleteField(),
       witchState: deleteField(),
       witchTurn: deleteField(),
       lastNight: deleteField(),
@@ -952,7 +994,7 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
       return
     }
     if (
-      room.status === 'day' &&
+      (room.status === 'day' || room.status === 'final') &&
       room.silencedPlayerId === playerId &&
       room.silencedDayCount === room.dayCount
     ) {
@@ -1058,6 +1100,7 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
     advancePhase,
     resetLobby,
     setVote,
+    setFinalVote,
     setNightAction,
     setWitchAction,
     setCupidAction,

@@ -21,15 +21,16 @@ import type {
   WitchState,
 } from '../lib/types'
 
-const rolesPalette: Role[] = ['werewolf', 'seer', 'bodyguard', 'witch', 'hunter', 'villager']
+const rolesPalette: Role[] = ['werewolf', 'seer', 'bodyguard', 'witch', 'hunter', 'fool', 'villager']
 const minPlayers = 4
-const customRoleOrder: Role[] = ['werewolf', 'seer', 'bodyguard', 'witch', 'hunter', 'villager']
+const customRoleOrder: Role[] = ['werewolf', 'seer', 'bodyguard', 'witch', 'hunter', 'fool', 'villager']
 const defaultCustomRoles: RoleCounts = {
   werewolf: 1,
   seer: 1,
   bodyguard: 1,
   witch: 0,
   hunter: 0,
+  fool: 0,
   villager: 1,
 }
 
@@ -89,6 +90,7 @@ function buildRoleDeck(count: number): Role[] {
   if (count >= 6) deck.push('bodyguard')
   if (count >= 7) deck.push('hunter')
   if (count >= 8) deck.push('witch')
+  if (count >= 9) deck.push('fool')
   while (deck.length < count) deck.push('villager')
   return shuffle(deck)
 }
@@ -578,6 +580,7 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
       seer: ['seerInspect'],
       witch: [],
       hunter: [],
+      fool: [],
       villager: [],
     }
 
@@ -698,6 +701,15 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
         updates[`players.${voteResult.targetId}.isAlive`] = false
         updates.lastEliminated = [voteResult.targetId]
         eliminated.push(voteResult.targetId)
+        const eliminatedPlayer = players.find((player) => player.id === voteResult.targetId)
+        if (eliminatedPlayer?.role === 'fool') {
+          updates.status = 'results'
+          updates.phaseEndsAt = deleteField()
+          updates.winner = 'fool'
+          updates.winReason = 'The Fool was voted out and wins instantly.'
+          await updateDoc(doc(db, 'rooms', room.code), updates)
+          return
+        }
       } else {
         updates.lastEliminated = []
       }

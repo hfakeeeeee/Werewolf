@@ -8,6 +8,7 @@ const featureChips = [
   { icon: '\u{1F6E1}', title: 'Bodyguard', text: 'Protect one player' },
   { icon: '\u{1F9EA}', title: 'Witch', text: 'Heal or poison once' },
   { icon: '\u{1F3F9}', title: 'Hunter', text: 'Final revenge shot' },
+  { icon: '\u{1F921}', title: 'Fool', text: 'Wins if voted out' },
 ]
 
 export default function LobbyPage() {

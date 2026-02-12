@@ -9,6 +9,7 @@ const roleHints: Record<Role, string> = {
   bodyguard: 'Protect one player each night, but not the same player on consecutive nights.',
   witch: 'Act after others. Heal the pending victim or poison someone once each.',
   hunter: 'If you fall, pick one player to take down with you.',
+  fool: 'You win if the village votes you out during the day.',
   villager: 'Discuss, deduce, and vote to eliminate werewolves.',
 }
 
@@ -18,6 +19,7 @@ const roleIcons: Record<Role, string> = {
   bodyguard: '🛡',
   witch: '🧪',
   hunter: '🏹',
+  fool: '🤡',
   villager: '🧑‍🌾',
 }
 
@@ -635,6 +637,7 @@ export default function GamePage() {
                             (isNightMainStep
                               ? 'Wait for Werewolf, Bodyguard, and Seer to finish. You act next.'
                               : 'Choose to heal the pending victim, poison a player, or pass.')}
+                          {me.role === 'fool' && 'You have no night action.'}
                           {me.role === 'villager' && 'You have no night action.'}
                           {me.role === 'hunter' && 'You have no night action.'}
                         </p>
@@ -728,7 +731,11 @@ export default function GamePage() {
                     {room.status === 'results' && (
                       <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
                         <p className="font-display text-xl text-ashen-100">
-                          {room.winner === 'villagers' ? 'Villagers win!' : 'Werewolves win!'}
+                          {room.winner === 'villagers'
+                            ? 'Villagers win!'
+                            : room.winner === 'werewolves'
+                              ? 'Werewolves win!'
+                              : 'The Fool wins!'}
                         </p>
                         <p className="mt-2">{room.winReason}</p>
                       </div>

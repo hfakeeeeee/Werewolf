@@ -1,7 +1,7 @@
 export type Phase = 'lobby' | 'night' | 'day' | 'voting' | 'results'
 export type GameMode = 'classic' | 'custom'
 
-export type Role = 'werewolf' | 'seer' | 'bodyguard' | 'villager' | 'hunter' | 'witch'
+export type Role = 'werewolf' | 'seer' | 'bodyguard' | 'villager' | 'hunter' | 'witch' | 'fool'
 export type RoleCounts = Record<Role, number>
 
 export interface Player {
@@ -75,7 +75,7 @@ export interface Room {
   lastNight?: NightResult
   lastEliminated?: string[]
   hunterPending?: string
-  winner?: 'villagers' | 'werewolves'
+  winner?: 'villagers' | 'werewolves' | 'fool'
   winReason?: string
   chat?: ChatMessage[]
 }

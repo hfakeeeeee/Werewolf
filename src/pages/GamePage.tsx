@@ -4,19 +4,6 @@ import { customRoleOrder, defaultCustomRoles, useRoom } from '../state/room'
 import { useTheme } from '../state/theme'
 import type { Role } from '../lib/types'
 
-const roleHints: Record<Role, string> = {
-  werewolf: 'Coordinate with other werewolves and strike together.',
-  seer: 'Inspect a player each night to learn their role.',
-  bodyguard: 'Protect one player each night, but not the same player on consecutive nights.',
-  witch: 'Act after others. Heal the pending victim or poison someone once each.',
-  hunter: 'If you fall, pick one player to take down with you.',
-  fool: 'You win if the village votes you out during the day.',
-  detective: 'Choose two players at night to learn if they share a team.',
-  silencer: 'Choose one player at night. They cannot speak the next day.',
-  cupid: 'Link two lovers at the start of the game. If one dies, the other follows.',
-  villager: 'Discuss, deduce, and vote to eliminate werewolves.',
-}
-
 const roleIcons: Record<Role, string> = {
   werewolf: '🐺',
   seer: '🔮',

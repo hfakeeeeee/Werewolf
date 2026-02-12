@@ -259,7 +259,6 @@ export default function GamePage() {
   const canHunterShoot = room?.hunterPending === playerId
   const waitingForHunter = Boolean(room?.hunterPending && !canHunterShoot)
   const canWitchAct = Boolean(isWitchStep && me?.isAlive && me.role === 'witch')
-  const canCupidAct = Boolean(isCupidStep && me?.isAlive && me.role === 'cupid')
   const visibleMessages = room?.chat?.filter(
     (msg) => (msg.audience ?? 'all') === 'all' || isWerewolf
   )

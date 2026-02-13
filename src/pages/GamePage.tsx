@@ -822,15 +822,21 @@ export default function GamePage() {
                       {isCupidStep && (
                         <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
                           <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Cupid turn</p>
-                          <p className="mt-2">Select two players in the grid to become lovers.</p>
-                          {nightActions?.cupidLoverIds?.length ? (
-                            <p className="mt-2 text-xs text-ashen-300">
-                              Selected:{' '}
-                              {nightActions.cupidLoverIds
-                                .map((id) => room.players[id]?.name ?? 'Unknown')
-                                .join(', ')}
-                            </p>
-                          ) : null}
+                          {me?.role === 'cupid' ? (
+                            <>
+                              <p className="mt-2">Select two players in the grid to become lovers.</p>
+                              {nightActions?.cupidLoverIds?.length ? (
+                                <p className="mt-2 text-xs text-ashen-300">
+                                  Selected:{' '}
+                                  {nightActions.cupidLoverIds
+                                    .map((id) => room.players[id]?.name ?? 'Unknown')
+                                    .join(', ')}
+                                </p>
+                              ) : null}
+                            </>
+                          ) : (
+                            <p className="mt-2">Cupid is choosing the lovers.</p>
+                          )}
                         </div>
                       )}
 

@@ -410,7 +410,7 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
     const seconds = phaseDurations[room.status as keyof typeof phaseDurations]
     if (!seconds) return
 
-    if (!room.phaseEndsAt || room.phaseEndsAt < Date.now()) {
+    if (!room.phaseEndsAt) {
       updateDoc(doc(db, 'rooms', room.code), {
         phaseEndsAt: Date.now() + seconds * 1000,
         updatedAt: Date.now(),

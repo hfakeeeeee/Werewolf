@@ -645,6 +645,7 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
     if (!room || !me) return
     if (room.status !== 'final') return
     if (!me.isAlive) return
+    if (room.finalAccusedId === playerId) return
     await updateDoc(doc(db, 'rooms', room.code), {
       [`finalVotes.${playerId}`]: vote,
       updatedAt: Date.now(),

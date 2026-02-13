@@ -143,12 +143,14 @@ export default function GamePage() {
   const navigate = useNavigate()
   const { code } = useParams()
   const [message, setMessage] = useState('')
+  const [nameDraft, setNameDraft] = useState('')
   const [showRoleWheel, setShowRoleWheel] = useState(false)
   const [roleRevealed, setRoleRevealed] = useState(false)
   const { theme, toggleTheme } = useTheme()
   const {
     playerId,
     setActiveCode,
+    updatePlayerName,
     room,
     error,
     me,
@@ -177,6 +179,10 @@ export default function GamePage() {
     if (!code) return
     setActiveCode(code)
   }, [code, setActiveCode])
+
+  useEffect(() => {
+    setNameDraft(me?.name ?? '')
+  }, [me?.name])
 
   useEffect(() => {
     if (!room || room.status === 'lobby') {
@@ -611,7 +617,7 @@ export default function GamePage() {
                         </div>
                         <div className="flex flex-wrap items-center gap-1 px-2 py-2 text-[9px] uppercase tracking-[0.2em] text-ashen-200">
                           <span className="rounded-full bg-ashen-700/70 px-2 py-1">
-                            {player.isAlive ? 'Active' : 'Out'}
+                            {player.isSpectator ? 'Spectator' : player.isAlive ? 'Active' : 'Out'}
                           </span>
                           {room.status === 'voting' && voteCount > 0 && (
                             <span className="rounded-full bg-ember/20 px-2 py-1 text-ember">
@@ -654,6 +660,28 @@ export default function GamePage() {
             </section>
 
             <aside className="space-y-4 lg:flex lg:h-full lg:flex-col lg:overflow-hidden">
+              {room.status === 'lobby' && me && (
+                <div className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-3 shadow-inky">
+                  <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Your name</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <input
+                      value={nameDraft}
+                      onChange={(event) => setNameDraft(event.target.value)}
+                      placeholder="Enter a nickname"
+                      className="flex-1 rounded-lg border border-ashen-600 bg-ashen-800/80 px-3 py-2 text-sm text-ashen-100 outline-none focus:border-ember"
+                    />
+                    <button
+                      onClick={() => updatePlayerName(nameDraft)}
+                      className="rounded-lg border border-ashen-500 px-3 py-2 text-xs font-semibold text-ashen-100"
+                    >
+                      Save
+                    </button>
+                  </div>
+                  <p className="mt-1 text-[11px] text-ashen-400">
+                    Name changes are allowed in the lobby only.
+                  </p>
+                </div>
+              )}
               {room.status === 'lobby' && isHost && (
                 <div className="rounded-2xl border border-ashen-700 bg-ashen-900/70 p-3 shadow-inky">
                   <div className="flex flex-wrap items-center justify-between gap-2">

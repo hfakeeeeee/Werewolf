@@ -315,6 +315,7 @@ export interface RoomState {
   setRoomCode: (code: string) => void
   activeCode: string
   setActiveCode: (code: string) => void
+  updatePlayerName: (name: string) => Promise<void>
   room: Room | null
   status: string
   error: string
@@ -484,6 +485,7 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
       isHost: true,
       isAlive: true,
       isReady: false,
+      isSpectator: false,
       joinedAt: nowStamp,
     }
 
@@ -534,6 +536,7 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
     }
 
     const nowStamp = Date.now()
+    const isSpectator = snap.data().status !== 'lobby'
     await setDoc(
       ref,
       {
@@ -542,8 +545,9 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
           id: playerId,
           name,
           isHost: false,
-          isAlive: true,
+          isAlive: !isSpectator,
           isReady: false,
+          isSpectator,
           joinedAt: nowStamp,
         },
       },
@@ -627,6 +631,7 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
       updates[`players.${player.id}.role`] = deck[index]
       updates[`players.${player.id}.isAlive`] = true
       updates[`players.${player.id}.isReady`] = false
+      updates[`players.${player.id}.isSpectator`] = false
     })
 
     await updateDoc(doc(db, 'rooms', room.code), updates)
@@ -637,6 +642,19 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
     const ref = doc(db, 'rooms', room.code)
     await updateDoc(ref, {
       [`votes.${playerId}`]: targetId,
+      updatedAt: Date.now(),
+    })
+  }
+
+  const updatePlayerName = async (name: string) => {
+    const trimmed = name.trim()
+    if (!room || !trimmed) return
+    if (room.status !== 'lobby') return
+    if (!room.players?.[playerId]) return
+    storeName(trimmed)
+    setPlayerName(trimmed)
+    await updateDoc(doc(db, 'rooms', room.code), {
+      [`players.${playerId}.name`]: trimmed,
       updatedAt: Date.now(),
     })
   }
@@ -942,6 +960,7 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
       updates[`players.${player.id}.isReady`] = false
       updates[`players.${player.id}.role`] = deleteField()
       updates[`players.${player.id}.isAlive`] = true
+      updates[`players.${player.id}.isSpectator`] = false
     })
     await updateDoc(doc(db, 'rooms', room.code), updates)
   }
@@ -975,6 +994,7 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
       return
     }
     storeName(name)
+    const isSpectator = room.status !== 'lobby'
     await setDoc(
       doc(db, 'rooms', room.code),
       {
@@ -983,8 +1003,9 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
           id: playerId,
           name,
           isHost: room.hostId === playerId,
-          isAlive: true,
+          isAlive: !isSpectator,
           isReady: false,
+          isSpectator,
           joinedAt: Date.now(),
         },
       },
@@ -1084,6 +1105,7 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
     setRoomCode,
     activeCode,
     setActiveCode,
+    updatePlayerName,
     room,
     status,
     error,

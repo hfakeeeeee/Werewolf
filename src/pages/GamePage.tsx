@@ -515,6 +515,12 @@ export default function GamePage() {
                       room.status === 'voting'
                         ? Object.values(room.votes ?? {}).filter((id) => id === player.id).length
                         : 0
+                    const voters =
+                      room.status === 'voting'
+                        ? Object.entries(room.votes ?? {})
+                            .filter(([, targetId]) => targetId === player.id)
+                            .map(([voterId]) => room.players[voterId]?.name ?? 'Someone')
+                        : []
                     const canSelect =
                       room.status === 'voting'
                         ? Boolean(me?.isAlive)
@@ -622,6 +628,11 @@ export default function GamePage() {
                           {room.status === 'voting' && voteCount > 0 && (
                             <span className="rounded-full bg-ember/20 px-2 py-1 text-ember">
                               Votes Received {voteCount}
+                            </span>
+                          )}
+                          {room.status === 'voting' && voters.length > 0 && (
+                            <span className="rounded-full bg-ashen-700/70 px-2 py-1 text-ashen-100">
+                              Voted by {voters.join(', ')}
                             </span>
                           )}
                           {room.status === 'lobby' && (

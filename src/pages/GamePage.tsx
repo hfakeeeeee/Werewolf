@@ -253,6 +253,10 @@ export default function GamePage() {
   const canWitchAct = Boolean(isWitchStep && me?.isAlive && me.role === 'witch')
   const canFinalVote = Boolean(isFinalPhase && meRecord?.isAlive)
   const hasLoverInfo = Boolean(canShowLoverInfo && isLover && otherLover)
+  const werewolfTeammates = useMemo(() => {
+    if (!room) return []
+    return Object.values(room.players).filter((p) => p.role === 'werewolf')
+  }, [room])
   const hasDayIntel =
     room?.status === 'day' &&
     Boolean(
@@ -732,6 +736,14 @@ export default function GamePage() {
                       {room.status === 'night' && me?.isAlive && (
                         <div className="rounded-xl border border-ashen-700 bg-ashen-800/70 p-3 text-sm text-ashen-200">
                           <p className="text-xs uppercase tracking-[0.3em] text-ashen-400">Night actions</p>
+                          {isWerewolf && roleRevealed && (
+                            <p className="mt-2 text-xs text-ashen-300">
+                              Pack:{' '}
+                              {werewolfTeammates
+                                .map((wolf) => (wolf.id === playerId ? `${wolf.name} (You)` : wolf.name))
+                                .join(', ')}
+                            </p>
+                          )}
                           <p className="mt-2">
                             {me.role === 'werewolf' &&
                               (isNightMainStep

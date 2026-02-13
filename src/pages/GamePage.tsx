@@ -488,7 +488,7 @@ export default function GamePage() {
                       )
                     }
                     const isMe = player.id === playerId
-                    const showRole = isMe && player.role
+                    const showRole = (isMe || room.status === 'results') && player.role
                     const nightSelections =
                       room.status === 'night'
                         ? me?.role === 'werewolf'
